@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# importruns.sh basename path/run1.nii path/run2.nii
+# importruns.sh <basename> <run1_file> <run2_file>
 #
 # -imports functional runs into current directory and names them as
 #  basename1 basename2 ...
