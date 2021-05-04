@@ -11,7 +11,7 @@ fBase=$1
 inFileNames="${@:2}"
 
 i=0
-> runs.txt
+> ${fBase}_runs.txt
 for inFileName in $inFileNames
 do
     i=$(( i+1 ))
@@ -20,5 +20,5 @@ do
     fBaseName=${fBase}$i
 
     fslmaths ${inFileName} ${fBaseName}.nii -odt float
-    echo ${fBaseName}.nii >> runs.txt
+    echo ${fBaseName}.nii >> ${fBase}_runs.txt
 done

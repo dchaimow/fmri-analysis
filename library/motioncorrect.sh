@@ -30,7 +30,7 @@ minouttr=$(expr ${ovals[1]} + 2)
 echo "min outlier: run $minoutrun, TR $minouttr" | tee min_outlier.txt
 
 # run motion correction
-fileNameList=(fileNames)
+fileNameList=($fileNames)
 mcbase=${fileNames[$(expr ${minoutrun} - 1)]}\[${minouttr}\]
 for fileName in $fileNames
 do

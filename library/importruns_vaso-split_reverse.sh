@@ -13,7 +13,7 @@ TR=$2
 inFileNames="${@:3}"
 
 i=0
-> runs_basenames.txt
+> ${fBase}_runs_basenames.txt
 for inFileName in $inFileNames
 do
     i=$(( i+1 ))
@@ -33,9 +33,9 @@ do
     3dTcat -overwrite -prefix ${fBaseName}_nulled.nii \
            ${fBaseName}_nulled.nii'[2..3]' \
            ${fBaseName}_nulled.nii'[2..$]'
-    3dTcat -overwrite -prefix ${fBaseName}_bold.nii \
+    3dTcat -overwrite -prefix ${fBaseName}_notnulled.nii \
            ${fBaseName}_notnulled.nii'[2..3]' \
            ${fBaseName}_notnulled.nii'[2..$]'
 
-    echo ${fBaseName} >> runs_basenames.txt
+    echo ${fBaseName} >> ${fBase}_runs_basenames.txt
 done
