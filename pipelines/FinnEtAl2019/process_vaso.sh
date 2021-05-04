@@ -7,6 +7,10 @@ dataDir=$2
 TR=4.012
 shiftFraction=0.5
 
+curDir=$(pwd)
+
+mkdir -p ${subj}
+
 # import
 importruns_vaso-split_reverse.sh \
     func ${TR} ${dataDir}/${subj}/func/${subj}_task-layer_run-?_bold.nii.gz
@@ -42,3 +46,5 @@ calct1.sh func_all
 # bold correction
 boldcorrect.sh func_alpha-rem ${shiftFraction}
 boldcorrect.sh func_go-nogo ${shiftFraction}
+
+cd ${curDir}
