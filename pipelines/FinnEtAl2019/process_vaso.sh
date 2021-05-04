@@ -2,7 +2,7 @@
 
 subj=$1
 
-dataDir=~/Data/FinnEtAl2019/ds002076
+dataDir=$2
 
 TR=4.012
 shiftFraction=0.5
