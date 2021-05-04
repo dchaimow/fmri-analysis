@@ -10,6 +10,7 @@ shiftFraction=0.5
 curDir=$(pwd)
 
 mkdir -p ${subj}
+cd ${subj}
 
 # import
 importruns_vaso-split_reverse.sh \
