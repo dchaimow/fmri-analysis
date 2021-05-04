@@ -13,7 +13,7 @@ importruns_vaso-split_reverse.sh \
 
 # find out which tasks
 find_task-runs.sh \
-    func ${TR} ${dataDir}/${subj}/func/${subj}_task-layer_run-?_bold.nii.gz
+    func ${dataDir}/${subj}/func/${subj}_task-layer_run-?_bold.nii.gz
 
 # motioncorrect
 motioncorrect_vaso.sh $(< func_runs_basenames.txt)
@@ -40,5 +40,5 @@ avgruns.sh func_all_notnulled.nii func?_notnulled_mc.nii
 calct1.sh func_all
 
 # bold correction
-boldcorect.sh func_alpha-rem ${shiftFraction}
-boldcorect.sh func_go-nogo ${shiftFraction}
+boldcorrect.sh func_alpha-rem ${shiftFraction}
+boldcorrect.sh func_go-nogo ${shiftFraction}

@@ -6,7 +6,7 @@
 # - shiftFraction is shift relative to TR, positive value shifts back in time
 
 fBaseName=$1
-shiftFraction=$4
+shiftFraction=$2
 
 # shift notnulled (BOLD)
 slicetimer -i ${fBaseName}_notnulled -o ${fBaseName}_notnulled_tshift.nii \
