@@ -12,5 +12,5 @@ shiftFraction=$2
 slicetimer -i ${fBaseName}_notnulled -o ${fBaseName}_notnulled_tshift.nii \
            --tglobal=-${shiftFraction}
 # BOLD correction
-fslmaths  ${fBaseName}_notnulled -div ${fBaseName}_notnulled_tshift.nii \
+fslmaths  ${fBaseName}_nulled -div ${fBaseName}_notnulled_tshift.nii \
           -max 0 -min 5 ${fBaseName}_vaso.nii
