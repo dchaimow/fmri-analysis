@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# register_fs-to-vasoT1_prepare.sh <vado_T1_file> <fs_dir> [<itksnap_binary>]
+# register_fs-to-vasoT1_prepare.sh <vaso_T1_file> <fs_dir> [<itksnap_binary>]
 #
 # - converts FS T1 to nifti
 # - starts ITK-SNAP in order to perform semi-automatic rigid-body registration in ITK-SNAP and save transformation matrix as initial_matrix.txt

@@ -18,10 +18,6 @@ if [ ! -f initial_matrix.txt ]; then
     read -p "Press enter to continue"
 fi
 
-<<<<<<< HEAD
-=======
-
->>>>>>> a508406ea91a4b21a81b0131359aec10f1cb4474
 antsRegistration \
     --verbose 1 \
     --dimensionality 3  \
