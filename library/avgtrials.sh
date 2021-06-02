@@ -16,10 +16,10 @@ a=0
 b=$(echo "${TR} * (${N}-1)" |  bc -l)
 echo $b
 
-3ddeconvolve -input ${filename} \
+3dDeconvolve -input ${filename} \
              -num_stimts 1 \
              -stim_times 1 "1D: ${trial_onsets}" "TENT($a,$b,$N)" \
-             -polort a \
+             -polort A \
              -TR_times $TR \
              -x1D Model \
              -overwrite \
