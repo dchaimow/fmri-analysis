@@ -23,6 +23,10 @@ do
     # import files
     3dTcat -prefix ${fBaseName}_nulled.nii ${inFileBaseName}_nulled.nii
     3dTcat -prefix ${fBaseName}_notnulled.nii ${inFileBaseName}_notnulled.nii    
+
+    # make sure sform matches qform
+    fslorient -copyqform2sform  ${inFileBaseName}_nulled.nii
+    fslorient -copyqform2sform  ${inFileBaseName}_notnulled.nii    
     
     # set TR
     3drefit -TR $TR ${fBaseName}_nulled.nii
