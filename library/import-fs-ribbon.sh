@@ -10,6 +10,8 @@ freesurferDir=$1
 analysisDir=$2
 vaso_t1=$3
 
+export FSLOUTPUTTYPE=NIFTI
+
 mri_convert ${freesurferDir}/mri/ribbon.mgz ${analysisDir}/fs_ribbon.nii
 antsApplyTransforms --interpolation BSpline[5] \
                     -d 3 \
