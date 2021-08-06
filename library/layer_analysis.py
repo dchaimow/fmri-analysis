@@ -3,12 +3,13 @@ import os
 import numpy as np
 import nibabel as nib
 from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Refit, Calc, TStat
+from nipype.interfaces.freesurfer import MRIConvert, MRIsConvert
+from nipype.interfaces.fsl import SliceTimer
 from nilearn.image import math_img
 from nilearn.masking import apply_mask, intersect_masks
 from collections import defaultdict
 import nipype.interfaces.fsl as fsl
 import nipype.pipeline.engine as pe
-from nipype.interfaces.freesurfer import MRIConvert, MRIsConvert
 from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
 from nipype.interfaces.ants import ApplyTransformsToPoints
 import pandas as pd
@@ -18,6 +19,11 @@ import copy
 from itertools import zip_longest
 import matplotlib.pyplot as plt
 from shutil import move
+
+def fsl_remove_ext(filename):
+    result = subprocess.run(['remove_ext',filename],stdout=subprocess.PIPE)
+    return result.stdout.strip().decode()
+
 
 def surftransform_gii(gii_surf, transforms, invert_transform_flags,cwd=None):
     """Takes gifti surface and applies ants transforms
@@ -111,6 +117,7 @@ def process_vaso(session_dir,process_script,alpharem_runs,gonogo_runs,analysis_s
         subprocess.run([process_script,session_dir,analysis_subdir])
     return analysis_dir
 
+
 def register_fs_to_vasot1(fs_dir,analysis_dir, force=False):
     if not os.path.isfile(os.path.join(analysis_dir,'fs_to_func_0GenericAffine.mat')) \
        or force==True:
@@ -143,6 +150,7 @@ def import_fs_ribbon_to_func(fs_dir,analysis_dir):
                       os.path.join(analysis_dir,'fs_t1_in-func.nii')]).returncode == 0:
         return os.path.join(analysis_dir,'rim.nii')
     
+
 def index_roi(roi,idx):
     """Extracts ROI with a specific index from a multi-index label file.
     """
@@ -214,6 +222,7 @@ def get_glasser_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_re
                               fs_to_func_reg,force_import)
     return roi
 
+
 def calc_stim_times(onset_delay, trial_duration, trial_order, condition_names=None):
     n = len(trial_order)
     t = np.arange(0,n) * trial_duration + onset_delay
@@ -238,12 +247,10 @@ def write_stim_time_files(stim_times_runs,cwd=None):
                 print(*stim_times[condition],file=file)
     return condition_stim_files
 
-# TODO: check averaging times again
-# TODO: check condition/stimtimes naming
 def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
                                 out_files_basename,polort=5,onset_shift=0,cwd=None):
     if cwd==None:
-        cwd=os.path.dirname(os.path.normpath(in_files[0])) 
+        cwd=os.path.dirname(os.path.normpath(in_files[0]))
     n_files = len(in_files)
     # returns estimated impules response components and baseline
     # set parameters
@@ -261,7 +268,27 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
         i_condition = i_condition + 1
         stim_times.append((i_condition,stim_file,f'TENT({a},{b},{n})'))
         stim_label.append((i_condition,str(condition)))    
-    # run deconvolve
+
+    #  cmdline_list = ['3dDeconvolve',
+    #                 '-input', ' '.join(in_files),
+    #                 '-overwrite',
+    #                 '-cbucket', os.path.join(cwd,out_files_basename + '_cbucket.nii'),
+    #                 '-fout',
+    #                 '-local_times',
+    #                 '-bucket',  os.path.join(cwd,out_files_basename + '_Deconvolve.nii'),
+    #                 '-polort', str(polort),
+    #                 '-stim_times_subtract', str(onset_shift),
+    #                 '-num_stimts',str(n_conditions)]
+
+    # for i in range(n_conditions):
+    #     cmdline_list.extend(['-stim_times',str(stim_times[i][0]),stim_times[i][1],f"'{stim_times[i][2]}'"])
+        
+    # for i in range(n_conditions):
+    #     cmdline_list.extend(['-stim_label',str(stim_label[i][0]),stim_label[i][1]])
+    
+    # # run deconvolve
+    # subprocess.run(cmdline_list)b
+
     deconvolve = Deconvolve()
     deconvolve.inputs.in_files = in_files
     deconvolve.inputs.stim_times = stim_times
@@ -269,11 +296,13 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
     deconvolve.inputs.polort = polort
     deconvolve.inputs.local_times = True
     deconvolve.inputs.fout = True
-    deconvolve.inputs.cbucket = os.path.join(cwd,out_files_basename + '_cbucket.nii')
-    deconvolve.inputs.out_file = os.path.join(cwd,out_files_basename + '_Deconvolve.nii')
+    deconvolve.inputs.cbucket = os.path.join(cwd,out_files_basename + '_cbucket.nii.gz')
+#    deconvolve.inputs.out_file = os.path.join(cwd,out_files_basename + '_Deconvolve.nii.gz')
     deconvolve.inputs.args ='-overwrite'
     deconvolve.inputs.stim_times_subtract = onset_shift
-    result = deconvolve.run(cwd=cwd)    
+    #print(deconvolve.cmdline)
+    result = deconvolve.run(cwd=cwd)
+    #return
     # extract fstat
     result_fstat = TCatSubBrick(in_files=[(result.outputs.out_file,f"'[0]'")],
                                 out_file = os.path.join(cwd,out_files_basename + '_fstat.nii'),
@@ -326,6 +355,7 @@ def calc_percent_change_trialavg(trialavg_files,baseline_file,inv_change=False):
         prc_change.append(result_prcchg.outputs.out_file)
     return prc_change
 
+
 def plot_roi_tcrs(file_list,roi,xlabel='volume',ylabel='signal'):
     df_dict = dict()
     condition_idx = 0
@@ -366,58 +396,6 @@ def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=No
     return ax
 
 
-def get_finn_tcrs_data(trial_averages,roi,):
-    data = dict()
-    for layer in layers:
-        for condition in conditions:
-            for modality in modalities:
-                data[modality,layer,condition] = np.loadtxt(
-                    fnamebase + modality + '_' + layer + '_'+  condition + '.1D')
-    return data
-
-def plot_finn_tcrs(fnamebase,modality,TR=3.702):
-    data = get_finn_tcrs_data(fnamebase)
-    fix, axes = plt.subplot(2,3,figsize=(15,5))
-    periods=[[4,14],[14,20]]
-    events=[['Stim',0],['Cue',4],['Probe',14]]
-    for row, layer in enumerate(layers):
-        plot_cond_tcrs([data[modality,layer,'alpha'],
-                        data[modality,layer,'rem']],
-                       colors=('tab:blue','tab:green'),
-                       labels=('alpha','rem'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
-        
-        plot_cond_tcrs([data[modality,layer,'go'],
-                        data[modality,layer,'nogo']],
-                       colors=('tab:red','tab:orange'),
-                       labels=('act','non-act'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
-
-        plot_cond_tcrs([data[modality,layer,'alpha'] -  data[modality,layer,'rem'],
-                        data[modality,layer,'go'] - data[modality,layer,'nogo']],                  
-                       colors=('tab:purple','tab:cyan'),
-                       labels=('alpha - rem','act - non-act'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
-    axes[0,0].set_ylabel('signal change [%]')
-    axes[1,0].set_ylabel('signal change [%]')
-    axes[1,0].set_xlabel('trial time [s]')
-    axes[1,1].set_xlabel('trial time [s]')
-    axes[1,2].set_xlabel('trial time [s]')
-        
-    fig.text(0.08,0.45,'deeper',ha='right',weight='bold')
-    fig.text(0.08,0.85,'superficial',ha='right',weight='bold')
-    fig.suptitle(modality.upper(),weight='bold')
-                       
-
 def preprocess_funcloc(data):
     # motion correction
     
@@ -429,13 +407,10 @@ def preprocess_funcloc(data):
 
     pass
 
-
 def feat_analysis(feat_dir,fsf_template):
     pass
 
-def fsl_remove_ext(filename):
-    result = subprocess.run(['remove_ext',filename],stdout=subprocess.PIPE)
-    return result.stdout.strip().decode()
+
 
 def reg_feat_to_fs(feat_dir,fs_dir):
     subject=os.path.basename(os.path.normpath(fs_dir))
@@ -483,6 +458,7 @@ def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0):
                       env=my_env).returncode == 0:
         return out_file
 
+
 def surf_activation_clusters(surf,cluster_surf=None,threshold=3,fs_dir=None,hemi=None):
     TODO: WIP
     if cluster_surf==None:
@@ -492,7 +468,6 @@ def surf_activation_clusters(surf,cluster_surf=None,threshold=3,fs_dir=None,hemi
     my_env = os.environ.copy()
     my_env['SUBJECTS_DIR'] = subjects_dir
   
-    
 
 def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=None,feat_dir=None):
     stat_name='zstat1'
@@ -516,11 +491,6 @@ def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=Non
 
     return None
 
-
-
-        
-
-
 def cluster_surf():
     subject=os.path.basename(os.path.normpath(feat_dir))
     subjects_dir=os.path.dirname(os.path.normpath(feat_dir))
@@ -536,6 +506,7 @@ def cluster_surf():
                     '--olab',os.path.join(feat_dir,'stats',hemi+'.zstat1_smooth_clusters.label')],
                    env=my_env)
 
+
 def fs_surf_to_fs_volume():
     pass
 
@@ -544,13 +515,61 @@ def get_mni_coord_roi():
     # (
     pass
 
-def get_funcact_roi():
+def layer_extend_roi_laynii():
+    pass
+                    
+def layer_extend_roi_vfs(roi):
+    pass
+
+def add_prefix_to_nifti_basename(path,prefix):
+    norm_path = os.path.normpath(path)
+    dir_name = os.path.dirname(norm_path)
+    base_name = os.path.basename(norm_path)
+    return(os.path.join(dir_name,prefix+base_name))    
+
+def add_postfix_to_nifti_basename(path,postfix):
+    norm_path = os.path.normpath(path)
+    s = os.path.splitext(norm_path)
+    if s[1] == '.gz':
+        s = os.path.splitext(s[0])
+        basename = s[0]
+        extension = s[1] + '.gz'
+    else:
+        basename = s[0]
+        extension = s[1]
+    return basename + postfix + extension
+
+    
+
+def get_funcact_roi_laynii(act_file,rim_file,roi_out_file,n_columns=10000,threshold=1):
+    columns_file=add_postfix_to_nifti_basename(rim_file,'_columns'+str(n_columns))
+    if not os.path.isfile(columns_file):
+        mid_gm_file=add_postfix_to_nifti_basename(rim_file,'_midGM_equidist')
+        subprocess.run(['LN2_COLUMNS',
+                        '-rim',rim_file,
+                        '-midgm',mid_gm_file,
+                        '-nr_columns',str(n_columns)])
+    subprocess.run(['LN2_MASK',
+                    '-scores', act_file,
+                    '-columns', columns_file,
+                    '-min_thr', str(threshold),
+                    '-output',roi_out_file])
+    subprocess.run(['fslmaths',roi_out_file,
+                    '-bin',roi_out_file])
+    return roi_out_file
+
+def roi_and(roi1,roi2):
+    
+    return intersect_masks((roi1,roi2), threshold=1, connected=False)
+
+def get_funcact_roi_other_versions():
     # not clear yet what to do here, possibly manual deliniation needed
     # then fill out entire GM
     # alternatively go to surface, smooth and back?
     # choose cluster within region/ close to coordinates?
     # apply activation mask to one of the above ROI definitions?
     pass
+
 
 # functional processing
 def initialize_session():
@@ -565,8 +584,27 @@ def trial_averaging():
 def glm_analysis():
     pass
 
-def bold_correct():
-    pass
+def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None):
+    """ notnulled_shift should equal (positive) difference between readout blocks
+    """
+    if notnulled_shift is not None:
+        slicetimer_result = SliceTimer(in_file=notnulled_file,
+                                       global_shift=-notnulled_shift)
+        notnulled_file = slicetimer_result.outputs.out_file
+
+    my_env=os.environ.copy()
+        
+    if os.path.normpath(out_file)[-3:]=='nii':
+        my_env['FSLOUTPUTTYPE'] = 'NIFTI'
+    elif  os.path.normpath(out_file)[-6:]=='nii.gz':
+        my_env['FSLOUTPUTTYPE'] = 'NIFTI_GZ'
+            
+    subprocess.run(['fslmaths',
+                    nulled_file,'-div', notnulled_file,
+                    '-max','0',
+                    '-min','5',
+                    out_file],env=my_env)
+    return out_file
 
 def normalize():
     # Normalizes single voxel timecourses to change relative to a baselne
@@ -641,11 +679,210 @@ def upsample(in_file, out_file, factor, method):
                     '-prefix',out_file,
                     '-input',in_file])
     
+
+### FinnReplicationPilot specifc functions
+def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0):
+    condition_data = []
+    for file in trialavg_data:
+        sampled_data, sampled_depths = sample_depths(file,roi,depths)
+        if layers=='deep':
+            condition_data.append(np.mean(sampled_data[:,sampled_depths<(0.5-d)],axis=1))
+        elif layers=='superficial':
+            condition_data.append(np.mean(sampled_data[:,sampled_depths>(0.5-d)],axis=1))
+            
+    if run_type=='alpha-rem':
+        labels=['rem','alpha']
+        colors=['tab:green','tab:blue']
+    elif run_type=='go-nogo':
+        labels=['nogo','go']
+        colors=['tab:orange','tab:red']
+        
+    plot_cond_tcrs(condition_data,TR=3.702,
+                   labels=labels,
+                   colors=colors,
+                   periods=[[4,14],[14,20]],
+                   events=[['Stim',0],['Cue',4],['Probe',14]],ax=ax)
+    plt.title(layers)
     
-# anatomy processing
+def plot_finn_tcrses(depths,roi,trialavg_alpharem,trialavg_gonogo,d=0):
+    if type(depths)==str:
+        depths = nib.load(depths)
+        
+    fig=plt.figure(figsize=(10,8), dpi= 100, facecolor='w', edgecolor='k')
+    ax = plt.subplot(2,2,1)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','superficial',ax,d)
+                    
+    ax = plt.subplot(2,2,2)
+    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','superficial',ax,d)
+    
+    ax = plt.subplot(2,2,3)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','deep',ax,d)
+    
+    ax = plt.subplot(2,2,4)
+    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','deep',ax,d)
 
+def get_finn_tcrs_data(trial_averages,roi,):
+    data = dict()
+    for layer in layers:
+        for condition in conditions:
+            for modality in modalities:
+                data[modality,layer,condition] = np.loadtxt(
+                    fnamebase + modality + '_' + layer + '_'+  condition + '.1D')
+    return data
 
-# combined processing
+def plot_finn_tcrs(fnamebase,modality,TR=3.702):
+    data = get_finn_tcrs_data(fnamebase)
+    fix, axes = plt.subplot(2,3,figsize=(15,5))
+    periods=[[4,14],[14,20]]
+    events=[['Stim',0],['Cue',4],['Probe',14]]
+    for row, layer in enumerate(layers):
+        plot_cond_tcrs([data[modality,layer,'alpha'],
+                        data[modality,layer,'rem']],
+                       colors=('tab:blue','tab:green'),
+                       labels=('alpha','rem'),
+                       periods=periods,
+                       events=events,
+                       TR=TR,
+                       ax=axes[row,0])
+        
+        plot_cond_tcrs([data[modality,layer,'go'],
+                        data[modality,layer,'nogo']],
+                       colors=('tab:red','tab:orange'),
+                       labels=('act','non-act'),
+                       periods=periods,
+                       events=events,
+                       TR=TR,
+                       ax=axes[row,0])
 
+        plot_cond_tcrs([data[modality,layer,'alpha'] -  data[modality,layer,'rem'],
+                        data[modality,layer,'go'] - data[modality,layer,'nogo']],                  
+                       colors=('tab:purple','tab:cyan'),
+                       labels=('alpha - rem','act - non-act'),
+                       periods=periods,
+                       events=events,
+                       TR=TR,
+                       ax=axes[row,0])
+    axes[0,0].set_ylabel('signal change [%]')
+    axes[1,0].set_ylabel('signal change [%]')
+    axes[1,0].set_xlabel('trial time [s]')
+    axes[1,1].set_xlabel('trial time [s]')
+    axes[1,2].set_xlabel('trial time [s]')
+        
+    fig.text(0.08,0.45,'deeper',ha='right',weight='bold')
+    fig.text(0.08,0.85,'superficial',ha='right',weight='bold')
+    fig.suptitle(modality.upper(),weight='bold')
 
+def finn_trial_averaging(run_type,analysis_dir):
+    trial_duration = 32
+    trial_order = paradigm(run_type)
+    trialavg = dict()
+    onset_delay = 8
+    in_files_bold = [os.path.join(analysis_dir,f'func_{run_type}_notnulled_tshift.nii.gz')]
+    in_files_vaso = [os.path.join(analysis_dir,f'func_{run_type}_vaso.nii.gz')]
+    stim_times_runs = [calc_stim_times(onset_delay=8,trial_duration=trial_duration,
+                                       trial_order=trial_order)]
+    trialavg_files_bold, baseline_file_bold, fstat_file_bold = \
+        average_trials_3ddeconvolve(in_files_bold,                                                                                                            stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg1_bold_' + run_type,
+                                    polort=5)
+    
+    trialavg_files_vaso, baseline_file_vaso, fstat_file_vaso = \
+        average_trials_3ddeconvolve(in_files_vaso,
+                                    stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg1_vaso_' + run_type,
+                                    polort=5)
+    
+    trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_bold,
+                                                        baseline_file_bold,
+                                                        inv_change=False)
+    trialavg_vaso_prcchg = calc_percent_change_trialavg(trialavg_files_vaso,
+                                                        baseline_file_vaso,
+                                                        inv_change=True)
 
+    return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
+
+def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1):
+    trial_duration = 32
+    trial_order = paradigm(run_type)
+    trialavg = dict()
+    onset_delay = 8
+    in_files_nulled = [os.path.join(analysis_dir,f'func_{run_type}_nulled.nii')]
+    in_files_notnulled = [os.path.join(analysis_dir,f'func_{run_type}_notnulled.nii')]
+    stim_times_runs = [calc_stim_times(onset_delay=8,trial_duration=trial_duration,
+                                       trial_order=trial_order)]
+
+    trialavg_files_nulled, baseline_file_nulled, fstat_file_nulled = \
+        average_trials_3ddeconvolve(in_files_nulled,
+                                    stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg2_nulled',
+                                    polort=5)
+    
+    trialavg_files_notnulled, baseline_file_notnulled, fstat_file_notnulled = \
+        average_trials_3ddeconvolve(in_files_notnulled,
+                                    stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg2_notnulled',
+                                    polort=5,
+                                    onset_shift=TR1)
+  
+    trialavg_files_vaso = [bold_correct(trialavg_files_nulled[0],trialavg_files_notnulled[0],
+                                        trialavg_files_nulled[0].replace('nulled','vaso')),
+                           bold_correct(trialavg_files_nulled[1],trialavg_files_notnulled[1],
+                                        trialavg_files_nulled[1].replace('nulled','vaso'))]
+                                                                                 
+    baseline_file_vaso = bold_correct(baseline_file_nulled,baseline_file_notnulled,
+                                      baseline_file_nulled.replace('nulled','vaso'))
+        
+    trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_notnulled,
+                                                        baseline_file_notnulled,
+                                                        inv_change=False)
+
+    trialavg_vaso_prcchg = calc_percent_change_trialavg(trialavg_files_vaso,
+                                                        baseline_file_vaso,
+                                                        inv_change=True)
+
+    fstat_file_bold = fstat_file_notnulled
+    
+    return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_nulled
+
+# Define a function to obtain some paradigm related info. (For now trial order, TODO: trial period timings, GLM events, ...)
+# we need:
+# for trial averaging: exact trial onset times (what about VASO,GE-BOLD shifts?) with conditions
+# + volume infor for period averagin?
+# for glm analysis
+# onsets and durations of all trial periods
+def paradigm(run_type):
+    conditionRem            = 2
+    conditionAlpha          = 3
+    conditionNogo           = 4
+    conditionGo             = 5
+    if run_type=='localizer':        
+        letterStringDuration = 2.5
+        fix1Duration         = 1.5
+        cueDuration          = 1
+        fixDelayDuration     = 9
+        probeDuration        = 1
+        interTrialDuration   = 5
+        
+        startBlankPeriod = 6
+        
+        trial_order=[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+    elif run_type in ['alpha-rem','go-nogo']:
+        letterStringDuration = 2.5
+        fix1Duration         = 1.5
+        cueDuration          = 1
+        fixDelayDuration     = 9
+        probeDuration        = 2
+        interTrialDuration   = 16    
+
+        startBlankPeriod = 8
+        
+        if run_type=='alpha-rem':
+            trial_order=[2,3,3,3,2,2,3,2,3,3,2,2,2,3,2,3,3,3,2,2]
+        elif run_type=='go-nogo':
+            trial_order=[4,5,5,5,4,4,5,4,5,5,4,4,4,5,4,5,5,5,4,4]
+    
+    return trial_order
