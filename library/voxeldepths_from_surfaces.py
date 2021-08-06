@@ -202,7 +202,7 @@ def calc_depth_from_surfaces_on_grid(surf_white, area_white, surf_pial, area_pia
     
     with parallel_backend('loky', inner_max_num_threads=1):
         results = List(
-            Parallel(n_jobs=32)(
+            Parallel(n_jobs=n_jobs)(
                 delayed(
                     lambda roi_idx:
                     calc_depth_from_surfaces_voxelidx(
