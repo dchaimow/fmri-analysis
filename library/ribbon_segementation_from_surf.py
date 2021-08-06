@@ -10,10 +10,6 @@ from skimage.segmentation import expand_labels
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed, parallel_backend
 
-### LEFT TO DO:
-### - save results as nifti and convenient way to call from command line or external jupyter processing scripts
-### - CONTINUE WITH ANALYSIS/COMPARISON OF LAYERING METHODS (consider adding nighres)
-
 @jit(nopython=True)
 def surf_inside_out_f(M,V,xyz):
     """Surf inside out single point version, to be used in conjunction with joblib.Parallel.
@@ -223,11 +219,15 @@ def calc_boundary_seg_hemi(surf_pial,surf_white,grid_size,gm_ribbon=None,n_jobs=
                                   1 * (boundary_seg_pial==1) + 2 * (boundary_seg_white==2)
     return boundary_seg_ribbon,boundary_seg_white, boundary_seg_pial,boundary_white, boundary_pial
 
+
 def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
                                            rh_surf_pial_file,rh_surf_white_file,
+                                           seg_ribbon_fname,
                                            volume_file,upsample_factor=None,gm_ribbon=None,n_jobs=4):
     volume = nib.load(volume_file)
-
+    if type(gm_ribbon) is nib.nifti1.Nifti1Image:
+        gm_ribbon = gm_ribbon.get_fdata()
+    
     n_x, n_y, n_z = volume.shape
     voxel_to_scanner = volume.affine
 
@@ -260,7 +260,11 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
         
     seg_ribbon = expand_labels(boundary_seg_ribbon,max(n_x,n_y,n_z)*2)
 
-    return seg_ribbon
+    xform = grid_to_scanner
+    nii_seg_ribbon = nib.nifti1.Nifti1Image(seg_ribbon, xform)
+    nib.save(nii_seg_ribbon, seg_ribbon_fname)
+    
+    return nii_seg_ribbon
 
 def edot(A,B):
     return A[0,:]*B[0,:]+A[2,:]*B[2,:]+A[2,:]*B[2,:]

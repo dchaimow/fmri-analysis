@@ -180,13 +180,13 @@ def calc_depth_from_surfaces_voxelidx(voxelidx,faces,vertices_white,vertices_pia
 @jit(nopython=True)
 def numba_assign_calc_depth_results(results,roi,grid_size):
     depths = np.empty(grid_size)
-    ribbon = np.empty(grid_size)
+    columns = np.empty(grid_size)
     depths[:] = np.nan
-    ribbon[:] = np.nan
+    columns[:] = np.nan
     for roi_idx,result in zip(roi,results):
         depths[roi_idx[0],roi_idx[1],roi_idx[2]]= result[0]
-        ribbon[roi_idx[0],roi_idx[1],roi_idx[2]]= result[1]
-    return depths, ribbon
+        columns[roi_idx[0],roi_idx[1],roi_idx[2]]= result[1]
+    return depths, columns
                                    
 def calc_depth_from_surfaces_on_grid(surf_white, area_white, surf_pial, area_pial,
                                      n_x, n_y, n_z, method, n_jobs=32):
@@ -210,17 +210,19 @@ def calc_depth_from_surfaces_on_grid(surf_white, area_white, surf_pial, area_pia
                         area_white, area_pial,bounding_prisms,method))(roi_idx)
                 for roi_idx in roi))
 
-    depths, ribbon = numba_assign_calc_depth_results(
+    depths, columns = numba_assign_calc_depth_results(
         results,roi,bounding_prisms.shape[:3])        
 
-    return depths, ribbon
+    return depths, columns
 
 
 def process_dc_voxeldepth_from_surfaces(surf_white_lh_file,area_white_lh_file,
                                         surf_pial_lh_file,area_pial_lh_file,
                                         surf_white_rh_file,area_white_rh_file,
                                         surf_pial_rh_file,area_pial_rh_file,
-                                        volume_file,method='equivol',
+                                        volume_file,
+                                        depths_fname,columns_fname,
+                                        method='equivol',
                                         upsample_factor=None,n_jobs=32):
 
     volume = nib.load(volume_file)
@@ -259,9 +261,16 @@ def process_dc_voxeldepth_from_surfaces(surf_white_lh_file,area_white_lh_file,
     area_pial = np.concatenate((area_pial_lh,area_pial_rh),axis=0)        
 
     # calc voxel depths
-    depth, ribbon = calc_depth_from_surfaces_on_grid(surf_white, area_white,
-                                                     surf_pial, area_pial,
-                                                     n_x, n_y, n_z,
-                                                     method,n_jobs)
+    depths, columns = calc_depth_from_surfaces_on_grid(surf_white, area_white,
+                                                       surf_pial, area_pial,
+                                                       n_x, n_y, n_z,
+                                                       method,n_jobs)
 
-    return depth, ribbon
+    xform = grid_to_scanner
+    nii_depths = nib.nifti1.Nifti1Image(depths, xform)
+    nii_columns = nib.nifti1.Nifti1Image(columns, xform)
+
+    nib.save(nii_depths,depths_fname)
+    nib.save(nii_columns,columns_fname)
+    
+    return nii_depths, nii_columns
