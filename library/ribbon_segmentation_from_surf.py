@@ -247,19 +247,36 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
     lh_surf_white = vfs.load_fs_surf_in_grid(lh_surf_white_file,grid_to_scanner)
     rh_surf_pial = vfs.load_fs_surf_in_grid(rh_surf_pial_file,grid_to_scanner)
     rh_surf_white = vfs.load_fs_surf_in_grid(rh_surf_white_file,grid_to_scanner)
+
+    xform = grid_to_scanner
     
     lh_boundary_seg_ribbon,lh_boundary_seg_white,lh_boundary_seg_pial,lh_boundary_white, lh_boundary_pial = \
         calc_boundary_seg_hemi(lh_surf_pial, lh_surf_white,(n_x,n_y,n_z),gm_ribbon,n_jobs)
-
+    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_ribbon, xform),
+    #          'lh_boundary_seg_ribbon.nii')
+    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_white, xform),
+    #          'lh_boundary_seg_white.nii')
+    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_pial, xform),
+    #          'lh_boundary_seg_pial.nii')
+    
     rh_boundary_seg_ribbon,rh_boundary_seg_white,rh_boundary_seg_pial,rh_boundary_white, rh_boundary_pial = \
         calc_boundary_seg_hemi(rh_surf_pial, rh_surf_white,(n_x,n_y,n_z),gm_ribbon,n_jobs)
-       
+    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_ribbon, xform),
+    #          'rh_boundary_seg_ribbon.nii')
+    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_white, xform),
+    #          'rh_boundary_seg_white.nii')
+    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_pial, xform),
+    #          'rh_boundary_seg_pial.nii')
+
     boundary_seg_ribbon = 3 * ((lh_boundary_seg_ribbon==3) | (rh_boundary_seg_ribbon==3)) + \
         2 * ((lh_boundary_seg_ribbon==2)| (rh_boundary_seg_ribbon==2)) + \
-        1 * ((lh_boundary_seg_ribbon==1)| (rh_boundary_seg_ribbon==1))
-        
+        1 * (((lh_boundary_seg_ribbon==1) & ~((rh_boundary_seg_ribbon==2)|(rh_boundary_seg_ribbon==3))) | \
+             ((rh_boundary_seg_ribbon==1) & ~((lh_boundary_seg_ribbon==2)|(lh_boundary_seg_ribbon==3))))
+    nib.save(nib.nifti1.Nifti1Image(boundary_seg_ribbon, xform),
+             'boundary_seg_ribbon.nii')
+    
     seg_ribbon = expand_labels(boundary_seg_ribbon,max(n_x,n_y,n_z)*2)
-
+    
     xform = grid_to_scanner
     nii_seg_ribbon = nib.nifti1.Nifti1Image(seg_ribbon, xform)
     nib.save(nii_seg_ribbon, seg_ribbon_fname)
