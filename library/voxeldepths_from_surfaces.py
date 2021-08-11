@@ -4,6 +4,7 @@ from scipy.optimize import root_scalar, minimize_scalar
 from numba import jit
 from numba.typed import List
 from joblib import Parallel, delayed, parallel_backend
+import os
 
 def load_fs_surf_in_scanner_space(surf_file):
     surf = load_fs_surf_in_grid(surf_file,np.eye(4))
@@ -223,55 +224,61 @@ def process_dc_voxeldepth_from_surfaces(surf_white_lh_file,area_white_lh_file,
                                         volume_file,
                                         depths_fname,columns_fname,
                                         method='equivol',
-                                        upsample_factor=None,n_jobs=32):
+                                        upsample_factor=None,n_jobs=32,force=False):
 
-    volume = nib.load(volume_file)
-    n_x, n_y, n_z = volume.shape[:3]
-    voxel_to_scanner = volume.affine
-
-    # optionally use upsampled grid
-    if upsample_factor is not None:
-        n_x = int(np.floor(n_x * upsample_factor))
-        n_y = int(np.floor(n_y * upsample_factor))
-        n_z = int(np.floor(n_z * upsample_factor))
-        upsampled_to_voxel = np.matrix(
-            [[1/upsample_factor,0                ,0                ,-0.5 + 1/(2*upsample_factor)],
-             [0                ,1/upsample_factor,0                ,-0.5 + 1/(2*upsample_factor)],
-             [0                ,0                ,1/upsample_factor,-0.5 + 1/(2*upsample_factor)],
-             [0                ,0                ,0                ,1]]);
-        grid_to_scanner = voxel_to_scanner @ upsampled_to_voxel
-    else:
-        grid_to_scanner = voxel_to_scanner
+    if not os.path.isfile(depths_fname) or not os.path.isfile(columns_fname) or force==True:
         
-    # load all surfaces in voxel space
-    surf_white_lh = load_fs_surf_in_grid(surf_white_lh_file,grid_to_scanner)
-    surf_pial_lh = load_fs_surf_in_grid(surf_pial_lh_file,grid_to_scanner)
-    surf_white_rh = load_fs_surf_in_grid(surf_white_rh_file,grid_to_scanner)
-    surf_pial_rh = load_fs_surf_in_grid(surf_pial_rh_file,grid_to_scanner)
+        volume = nib.load(volume_file)
+        n_x, n_y, n_z = volume.shape[:3]
+        voxel_to_scanner = volume.affine
 
-    # load area files
-    area_white_lh = nib.freesurfer.read_morph_data(area_white_lh_file)
-    area_pial_lh = nib.freesurfer.read_morph_data(area_pial_lh_file)
-    area_white_rh = nib.freesurfer.read_morph_data(area_white_rh_file)
-    area_pial_rh = nib.freesurfer.read_morph_data(area_pial_rh_file)    
+        # optionally use upsampled grid
+        if upsample_factor is not None:
+            n_x = int(np.floor(n_x * upsample_factor))
+            n_y = int(np.floor(n_y * upsample_factor))
+            n_z = int(np.floor(n_z * upsample_factor))
+            upsampled_to_voxel = np.matrix(
+                [[1/upsample_factor,0                ,0                ,-0.5 + 1/(2*upsample_factor)],
+                 [0                ,1/upsample_factor,0                ,-0.5 + 1/(2*upsample_factor)],
+                 [0                ,0                ,1/upsample_factor,-0.5 + 1/(2*upsample_factor)],
+                 [0                ,0                ,0                ,1]]);
+            grid_to_scanner = voxel_to_scanner @ upsampled_to_voxel
+        else:
+            grid_to_scanner = voxel_to_scanner
 
-    # merge hemispheres
-    surf_white = merge_surfaces(surf_white_lh,surf_white_rh)
-    surf_pial = merge_surfaces(surf_pial_lh,surf_pial_rh)
-    area_white = np.concatenate((area_white_lh,area_white_rh),axis=0)
-    area_pial = np.concatenate((area_pial_lh,area_pial_rh),axis=0)        
+        # load all surfaces in voxel space
+        surf_white_lh = load_fs_surf_in_grid(surf_white_lh_file,grid_to_scanner)
+        surf_pial_lh = load_fs_surf_in_grid(surf_pial_lh_file,grid_to_scanner)
+        surf_white_rh = load_fs_surf_in_grid(surf_white_rh_file,grid_to_scanner)
+        surf_pial_rh = load_fs_surf_in_grid(surf_pial_rh_file,grid_to_scanner)
 
-    # calc voxel depths
-    depths, columns = calc_depth_from_surfaces_on_grid(surf_white, area_white,
-                                                       surf_pial, area_pial,
-                                                       n_x, n_y, n_z,
-                                                       method,n_jobs)
+        # load area files
+        area_white_lh = nib.freesurfer.read_morph_data(area_white_lh_file)
+        area_pial_lh = nib.freesurfer.read_morph_data(area_pial_lh_file)
+        area_white_rh = nib.freesurfer.read_morph_data(area_white_rh_file)
+        area_pial_rh = nib.freesurfer.read_morph_data(area_pial_rh_file)    
 
-    xform = grid_to_scanner
-    nii_depths = nib.nifti1.Nifti1Image(depths, xform)
-    nii_columns = nib.nifti1.Nifti1Image(columns, xform)
+        # merge hemispheres
+        surf_white = merge_surfaces(surf_white_lh,surf_white_rh)
+        surf_pial = merge_surfaces(surf_pial_lh,surf_pial_rh)
+        area_white = np.concatenate((area_white_lh,area_white_rh),axis=0)
+        area_pial = np.concatenate((area_pial_lh,area_pial_rh),axis=0)        
 
-    nib.save(nii_depths,depths_fname)
-    nib.save(nii_columns,columns_fname)
-    
+        # calc voxel depths
+        depths, columns = calc_depth_from_surfaces_on_grid(surf_white, area_white,
+                                                           surf_pial, area_pial,
+                                                           n_x, n_y, n_z,
+                                                           method,n_jobs)
+
+        xform = grid_to_scanner
+        nii_depths = nib.nifti2.Nifti2Image(depths, xform)
+        nii_columns = nib.nifti2.Nifti2Image(columns, xform)
+
+        nib.save(nii_depths,depths_fname)
+        nib.save(nii_columns,columns_fname)
+
+    else:
+        nii_depths = nib.load(depths_fname)
+        nii_columns = nib.load(columns_fname)
+        
     return nii_depths, nii_columns

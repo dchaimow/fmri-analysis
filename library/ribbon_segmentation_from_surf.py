@@ -254,13 +254,13 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
         2 * ((lh_boundary_seg_ribbon==2)| (rh_boundary_seg_ribbon==2)) + \
         1 * (((lh_boundary_seg_ribbon==1) & ~((rh_boundary_seg_ribbon==2)|(rh_boundary_seg_ribbon==3))) | \
              ((rh_boundary_seg_ribbon==1) & ~((lh_boundary_seg_ribbon==2)|(lh_boundary_seg_ribbon==3))))
-    nib.save(nib.nifti1.Nifti1Image(boundary_seg_ribbon, xform),
+    nib.save(nib.nifti2.Nifti2Image(boundary_seg_ribbon, xform),
              'boundary_seg_ribbon.nii')
     
     seg_ribbon = expand_labels(boundary_seg_ribbon,max(n_x,n_y,n_z)*2)
     
     xform = grid_to_scanner
-    nii_seg_ribbon = nib.nifti1.Nifti1Image(seg_ribbon, xform)
+    nii_seg_ribbon = nib.nifti2.Nifti2Image(seg_ribbon, xform)
     nib.save(nii_seg_ribbon, seg_ribbon_fname)
     
     return nii_seg_ribbon

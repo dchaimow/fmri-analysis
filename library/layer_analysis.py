@@ -67,7 +67,7 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags,out_file,cwd=No
                 ).run(cwd=cwd)
     return out_file
 
-def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None):
+def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None,force=False):
     if analysis_dir == None:
         analysis_dir = os.path.join(fs_dir,'surf')
     transform_0_lin = fs_to_func_reg[1]
@@ -78,9 +78,12 @@ def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None):
         for surf_type in ['white','pial']:        
             surf = os.path.join(fs_dir,'surf', hemi + '.' + surf_type)
             surf_trans = os.path.join(analysis_dir,hemi + '.' +surf_type + '_func')
-            surf_trans_files[hemi,surf_type] = \
-                surftransform_fs(surf,[transform_0_lin,transform_1_inversewarp],
-                                 invert_transform_flags,out_file=surf_trans)
+            if not os.path.isfile(surf_trans) or force==True:
+                surf_trans_files[hemi,surf_type] = \
+                    surftransform_fs(surf,[transform_0_lin,transform_1_inversewarp],
+                                     invert_transform_flags,out_file=surf_trans)
+            else:
+                surf_trans_files[hemi,surf_type]=surf_trans
     return surf_trans_files
 
 def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
@@ -139,16 +142,28 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
                     '-o',vol_out,
                     '-n','NearestNeighbor'])
 
-def import_fs_ribbon_to_func(fs_dir,analysis_dir):
+    # NOTE: It seemed necessary, because the resulting affine from ANTS was not exactly the same as the ref volume
+    # (they differ at the 8th decimal after the dot), but why are they not exatly the same?
+  
+    #nii_vol_out = nib.load(vol_out)
+    #nii_ref_vol = nib.load(ref_vol)
+    #nii_vol_out.header.set_qform(nii_ref_vol.header.get_qform())
+    #nii_vol_out.header.set_sform(nii_ref_vol.header.get_sform())
+    #nib.save(nii_vol_out,vol_out)
+
+def import_fs_ribbon_to_func(fs_dir,analysis_dir,force=False):
     """Calls shell script in fmri-analysis/library
     TODO: port to python function
     assume fs_to_func_reg files in analysis_dir
     """
-    if subprocess.run(['/data/p_02389/code/fmri-analysis/library/import-fs-ribbon.sh',
-                      fs_dir,
-                      analysis_dir,
-                      os.path.join(analysis_dir,'fs_t1_in-func.nii')]).returncode == 0:
-        return os.path.join(analysis_dir,'rim.nii')
+    rim_file = os.path.join(analysis_dir,'rim.nii')
+    if not os.path.isfile(rim_file) or force==True:
+        if subprocess.run(['/data/p_02389/code/fmri-analysis/library/import-fs-ribbon.sh',
+                           fs_dir,
+                           analysis_dir,
+                           os.path.join(analysis_dir,'fs_t1_in-func.nii')]).returncode != 0:
+            return None
+    return rim_file
     
 
 def index_roi(roi,idx):
@@ -180,14 +195,14 @@ def fs_LR_label_to_fs_volume(ciftify_dir,analysis_dir,labels,hemi,out_basename):
     return volume_out
     
 def get_fs_LR_atlas_roi(parcel=None,atlas_labels=None,out_basename=None,analysis_dir=None,
-                        ciftify_dir=None,fs_to_func_reg=None,force_import=False):
+                        ciftify_dir=None,fs_to_func_reg=None,force=False):
     """Returns an ROI in functional space by transforming GIFTI label files in fs_LR space. 
     ROI is specified using parcel=(hemi,idx).
     """
     hemi = parcel[0]
     parcel_idx = parcel[1]
     labels_in_func = os.path.join(analysis_dir,out_basename+'_labels_'+hemi+'_in-func.nii')
-    if not os.path.isfile(labels_in_func) or force_import==True:
+    if not os.path.isfile(labels_in_func) or force==True:
         labels_in_fs_individual = fs_LR_label_to_fs_volume(ciftify_dir,analysis_dir,
                                                            atlas_labels[hemi],hemi,out_basename)        
         apply_ants_transforms(vol_in=labels_in_fs_individual,
@@ -199,7 +214,7 @@ def get_fs_LR_atlas_roi(parcel=None,atlas_labels=None,out_basename=None,analysis
     return roi
 
 def get_md_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=None,
-               md_labels=None,force_import=False):
+               md_labels=None,force=False):
     """Returns a multiple-demand network ROI (Moataz et al. 2020) transformed to functional space
     """
     if md_labels==None:
@@ -207,11 +222,11 @@ def get_md_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=Non
                    'R':'/data/pt_02389/RL_analysis/ROIs/HCP_Glasser/Moataz/MD_R_0.2thresh.label.gii'}
     out_basename='md'
     roi = get_fs_LR_atlas_roi(parcel,md_labels,out_basename,analysis_dir,ciftify_dir,
-                              fs_to_func_reg,force_import)
+                              fs_to_func_reg,force)
     return roi
     
 def get_glasser_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=None,
-                    glasser_labels=None,force_import=False):
+                    glasser_labels=None,force=False):
     """Returns a HCP MMP 1.0 atlas ROI (Glasser et al. 2016) transformed to functional space
     """
     if glasser_labels==None:
@@ -219,7 +234,7 @@ def get_glasser_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_re
                         'R':'/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.32k_fs_LR.label.gii'}
     out_basename='glasser'
     roi = get_fs_LR_atlas_roi(parcel,glasser_labels,out_basename,analysis_dir,ciftify_dir,
-                              fs_to_func_reg,force_import)
+                              fs_to_func_reg,force)
     return roi
 
 
@@ -268,26 +283,6 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
         i_condition = i_condition + 1
         stim_times.append((i_condition,stim_file,f'TENT({a},{b},{n})'))
         stim_label.append((i_condition,str(condition)))    
-
-    #  cmdline_list = ['3dDeconvolve',
-    #                 '-input', ' '.join(in_files),
-    #                 '-overwrite',
-    #                 '-cbucket', os.path.join(cwd,out_files_basename + '_cbucket.nii'),
-    #                 '-fout',
-    #                 '-local_times',
-    #                 '-bucket',  os.path.join(cwd,out_files_basename + '_Deconvolve.nii'),
-    #                 '-polort', str(polort),
-    #                 '-stim_times_subtract', str(onset_shift),
-    #                 '-num_stimts',str(n_conditions)]
-
-    # for i in range(n_conditions):
-    #     cmdline_list.extend(['-stim_times',str(stim_times[i][0]),stim_times[i][1],f"'{stim_times[i][2]}'"])
-        
-    # for i in range(n_conditions):
-    #     cmdline_list.extend(['-stim_label',str(stim_label[i][0]),stim_label[i][1]])
-    
-    # # run deconvolve
-    # subprocess.run(cmdline_list)b
 
     deconvolve = Deconvolve()
     deconvolve.inputs.in_files = in_files
@@ -412,11 +407,15 @@ def feat_analysis(feat_dir,fsf_template):
 
 
 
-def reg_feat_to_fs(feat_dir,fs_dir):
+def reg_feat_to_fs(feat_dir,fs_dir,force=False):
     subject=os.path.basename(os.path.normpath(fs_dir))
     subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
     my_env = os.environ.copy()
     my_env['SUBJECTS_DIR'] = subjects_dir
+
+    reg_file = os.path.join(feat_dir,'feat2fs.lta')
+    
+    if os.path.isfile(
     if subprocess.run(['bbregister',
                        '--mov',os.path.join(feat_dir,'example_func.nii.gz'),
                        '--bold',
@@ -571,7 +570,7 @@ def get_funcact_roi_vfs(act_file,columns_file,roi_out_file,threshold=1):
             mask[columns==column_idx] = 1
 
     xform = nii_columns.affine
-    mask_nii = nib.nifti1.Nifti1Image(mask,xform)
+    mask_nii = nib.nifti2.Nifti2Image(mask,xform)
     nib.save(mask_nii,roi_out_file)
     return mask_nii
 
@@ -634,24 +633,26 @@ def sample_timecourse(func_filename,roi):
     masked_data=apply_mask(func_filename,roi)
     return masked_data
 
-def calc_layers_laynii(rim_file,out_file_base=None,method='equidist',n_layers=3):
+def calc_layers_laynii(rim_file,out_file_base=None,method='equidist',n_layers=3,force=False):
     # include upsampling methods?
     if out_file_base is None:
         out_file_base = fsl_remove_ext(rim_file)
-        
-    run_string_list = ['LN2_LAYERS',
-                       '-rim',rim_file,
-                       '-output',out_file_base,
-                       '-nr_layers',str(n_layers)]
     if method == 'equivol':
-        run_string_list.append('-equivol')
-
-    subprocess.run(run_string_list)
-    if method== 'equivol':
-        return out_file_base + "_metric_equivol.nii"
+        out_file = out_file_base + "_metric_equivol.nii"
     else:
-        return out_file_base + "_metric_equidist.nii"
+        out_file = out_file_base + "_metric_equidist.nii"
 
+    if not os.path.isfile(out_file) or force==True:
+        run_string_list = ['LN2_LAYERS',
+                           '-rim',rim_file,
+                           '-output',out_file_base,
+                           '-nr_layers',str(n_layers)]
+        if method == 'equivol':
+            run_string_list.append('-equivol')
+            subprocess.run(run_string_list)
+
+    return out_file
+    
 def generate_two_layers(analysis_dir,depths,delta=0,roi=None):
     test = intersect_masks([depths,roi])
     superficial = math_img(f'img<{0.5-delta/2}',img=depths)
