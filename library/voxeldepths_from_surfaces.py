@@ -234,10 +234,11 @@ def process_dc_voxeldepth_from_surfaces(surf_white_lh_file,area_white_lh_file,
         n_x = int(np.floor(n_x * upsample_factor))
         n_y = int(np.floor(n_y * upsample_factor))
         n_z = int(np.floor(n_z * upsample_factor))
-        upsampled_to_voxel = np.matrix([[1/upsample_factor,0,0,-1/(2*upsample_factor)],
-                                       [0,1/upsample_factor,0,-1/(2*upsample_factor)],
-                                       [0,0,1/upsample_factor,-1/(2*upsample_factor)],
-                                       [0,0,0,1]]);
+        upsampled_to_voxel = np.matrix(
+            [[1/upsample_factor,0                ,0                ,-0.5 + 1/(2*upsample_factor)],
+             [0                ,1/upsample_factor,0                ,-0.5 + 1/(2*upsample_factor)],
+             [0                ,0                ,1/upsample_factor,-0.5 + 1/(2*upsample_factor)],
+             [0                ,0                ,0                ,1]]);
         grid_to_scanner = voxel_to_scanner @ upsampled_to_voxel
     else:
         grid_to_scanner = voxel_to_scanner

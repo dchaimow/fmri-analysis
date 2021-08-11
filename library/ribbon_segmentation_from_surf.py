@@ -157,7 +157,7 @@ def segment_surf_sides(surf,array_size,gm_ribbon=None,n_jobs=4):
     S[XYZidcs] = np.mod(n,2)+1
 
     return S, surf_boundary
-    
+
 def calc_segmentation_from_surf(surf_pial_file,surf_white_file,volume_file,upsample_factor=None,gm_ribbon=None,n_jobs=4):
     volume = nib.load(volume_file)
 
@@ -228,10 +228,11 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
         n_x = int(np.floor(n_x * upsample_factor))
         n_y = int(np.floor(n_y * upsample_factor))
         n_z = int(np.floor(n_z * upsample_factor))
-        upsampled_to_voxel = np.matrix([[1/upsample_factor,0,0,-1/(2*upsample_factor)],
-                                       [0,1/upsample_factor,0,-1/(2*upsample_factor)],
-                                       [0,0,1/upsample_factor,-1/(2*upsample_factor)],
-                                       [0,0,0,1]]);
+        upsampled_to_voxel = np.matrix(
+            [[1/upsample_factor,0                ,0                ,-0.5 + 1/(2*upsample_factor)],
+             [0                ,1/upsample_factor,0                ,-0.5 + 1/(2*upsample_factor)],
+             [0                ,0                ,1/upsample_factor,-0.5 + 1/(2*upsample_factor)],
+             [0                ,0                ,0                ,1]]);
         grid_to_scanner = voxel_to_scanner @ upsampled_to_voxel
     else:
         grid_to_scanner = voxel_to_scanner
