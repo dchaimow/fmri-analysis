@@ -195,13 +195,6 @@ def calc_segmentation_from_surf(surf_pial_file,surf_white_file,volume_file,upsam
     ribbon_boundary_seg_expand = expand_labels(ribbon_boundary_seg,max(n_x,n_y,n_z)*2)
 
     return ribbon_boundary_seg, ribbon_boundary_seg_expand, seg_white, seg_pial, surf_white, surf_pial
-    #ribbon = 2* S_pial - 1 * S_white
-
-    #intermediate_results = [surf_pial, surf_white, intermediate_pial, intermediate_white,
-    #                        S_pial,S_white]
-    # GM ribbon segmentation: 1 = outside towards CSF, 2 = inside towards WM, 3 = GM ribbon
-    #return ribbon, intermediate_results
-
 
 def calc_boundary_seg_hemi(surf_pial,surf_white,grid_size,gm_ribbon=None,n_jobs=4):
 
@@ -252,21 +245,9 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
     
     lh_boundary_seg_ribbon,lh_boundary_seg_white,lh_boundary_seg_pial,lh_boundary_white, lh_boundary_pial = \
         calc_boundary_seg_hemi(lh_surf_pial, lh_surf_white,(n_x,n_y,n_z),gm_ribbon,n_jobs)
-    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_ribbon, xform),
-    #          'lh_boundary_seg_ribbon.nii')
-    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_white, xform),
-    #          'lh_boundary_seg_white.nii')
-    # nib.save(nib.nifti1.Nifti1Image(lh_boundary_seg_pial, xform),
-    #          'lh_boundary_seg_pial.nii')
     
     rh_boundary_seg_ribbon,rh_boundary_seg_white,rh_boundary_seg_pial,rh_boundary_white, rh_boundary_pial = \
         calc_boundary_seg_hemi(rh_surf_pial, rh_surf_white,(n_x,n_y,n_z),gm_ribbon,n_jobs)
-    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_ribbon, xform),
-    #          'rh_boundary_seg_ribbon.nii')
-    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_white, xform),
-    #          'rh_boundary_seg_white.nii')
-    # nib.save(nib.nifti1.Nifti1Image(rh_boundary_seg_pial, xform),
-    #          'rh_boundary_seg_pial.nii')
 
     boundary_seg_ribbon = 3 * ((lh_boundary_seg_ribbon==3) | (rh_boundary_seg_ribbon==3)) + \
         2 * ((lh_boundary_seg_ribbon==2)| (rh_boundary_seg_ribbon==2)) + \
