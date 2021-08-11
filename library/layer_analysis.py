@@ -70,7 +70,7 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags,out_file,cwd=No
 def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None):
     if analysis_dir == None:
         analysis_dir = os.path.join(fs_dir,'surf')
-    transform_0_lin = fs_to_func_reg[2]
+    transform_0_lin = fs_to_func_reg[1]
     transform_1_inversewarp = fs_to_func_reg[3]
     invert_transform_flags = [True, False]
     surf_trans_files = dict()
@@ -87,7 +87,7 @@ def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
     if analysis_dir == None:
         analysis_dir = os.path.join(ciftify_dir,'T1w','fsaverage_LR32k')
     ciftify_subject = os.path.basename(os.path.normpath(ciftify_dir))
-    transform_0_lin = fs_to_func_reg[2]
+    transform_0_lin = fs_to_func_reg[1]
     transform_1_inversewarp = fs_to_func_reg[3]
     invert_transform_flags = [True, False]
     surf_trans_files = dict()
@@ -538,7 +538,6 @@ def add_postfix_to_nifti_basename(path,postfix):
         basename = s[0]
         extension = s[1]
     return basename + postfix + extension
-
     
 
 def get_funcact_roi_laynii(act_file,rim_file,roi_out_file,n_columns=10000,threshold=1):
