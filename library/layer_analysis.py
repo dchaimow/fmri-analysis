@@ -617,6 +617,24 @@ def sample_timecourse(func_filename,roi):
     masked_data=apply_mask(func_filename,roi)
     return masked_data
 
+def calc_layers_laynii(rim_file,out_file_base=None,method='equidist',n_layers=3):
+    # include upsampling methods?
+    if out_file_base is None:
+        out_file_base = fsl_remove_ext(rim_file)
+        
+    run_string_list = ['LN2_LAYERS',
+                       '-rim',rim_file,
+                       '-output',out_file_base,
+                       '-nr_layers',str(n_layers)]
+    if method == 'equivol':
+        run_string_list.append('-equivol')
+
+    subprocess.run(run_string_list)
+    if method== 'equivol':
+        return out_file_base + "_metric_equivol.nii"
+    else:
+        return out_file_base + "_metric_equidist.nii"
+
 def generate_two_layers(analysis_dir,depths,delta=0,roi=None):
     test = intersect_masks([depths,roi])
     superficial = math_img(f'img<{0.5-delta/2}',img=depths)
