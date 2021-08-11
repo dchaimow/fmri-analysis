@@ -558,6 +558,24 @@ def get_funcact_roi_laynii(act_file,rim_file,roi_out_file,n_columns=10000,thresh
                     '-bin',roi_out_file])
     return roi_out_file
 
+def get_funcact_roi_vfs(act_file,columns_file,roi_out_file,threshold=1):
+    scores = nib.load(act_file).get_fdata()
+    
+    nii_columns = nib.load(columns_file)
+    columns = nii_columns.get_fdata()
+    mask = np.zeros(nii_columns.shape)
+    scores_thr = (scores >= threshold)
+
+    act_columns = np.unique(columns[scores_thr])
+    for column_idx in act_columns:
+        if column_idx != 0:
+            mask[columns==column_idx] = 1
+
+    xform = nii_columns.affine
+    mask_nii = nib.nifti1.Nifti1Image(mask,xform)
+    nib.save(mask_nii,roi_out_file)
+    return mask_nii
+
 def roi_and(roi1,roi2):
     
     return intersect_masks((roi1,roi2), threshold=1, connected=False)
