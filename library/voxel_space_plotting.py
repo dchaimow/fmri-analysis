@@ -29,8 +29,10 @@ def plot_stat_map(stat_map_img,bg_img,threshold=1e-06):
     stat_map_img = img_to_voxel_space(stat_map_img)
     bg_img = img_to_voxel_space(bg_img)
     nl_plotting.plot_stat_map(stat_map_img=stat_map_img,bg_img=bg_img,display_mode='z',threshold=threshold)
-    
+
 def plot_roi(roi_img,bg_img):
     roi_img = img_to_voxel_space(roi_img)
     bg_img = img_to_voxel_space(bg_img)
     nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z')
+#    nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z',colorbar=True,cmap='Paired')
+

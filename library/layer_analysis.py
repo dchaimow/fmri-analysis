@@ -20,6 +20,7 @@ from itertools import zip_longest
 import matplotlib.pyplot as plt
 from shutil import move
 
+
 def fsl_remove_ext(filename):
     result = subprocess.run(['remove_ext',filename],stdout=subprocess.PIPE)
     return result.stdout.strip().decode()
@@ -50,6 +51,7 @@ def surftransform_gii(gii_surf, transforms, invert_transform_flags,cwd=None):
     gii_surf_transformed = result_CSVToGifti.outputs.out_file
     return gii_surf_transformed
 
+
 def surftransform_fs(fs_surf, transforms, invert_transform_flags,out_file,cwd=None):
     if cwd==None:
         cwd=os.path.dirname(os.path.normpath(out_file))
@@ -66,6 +68,7 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags,out_file,cwd=No
                 to_tkr=True
                 ).run(cwd=cwd)
     return out_file
+
 
 def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None,force=False):
     if analysis_dir == None:
@@ -85,6 +88,7 @@ def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None,force=False):
             else:
                 surf_trans_files[hemi,surf_type]=surf_trans
     return surf_trans_files
+
 
 def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
     if analysis_dir == None:
@@ -107,7 +111,7 @@ def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
             os.rename(out_file,surf_trans)
             surf_trans_files[hemi,surf_type] = surf_trans            
     return surf_trans_files
-            
+
 
 def process_vaso(session_dir,process_script,alpharem_runs,gonogo_runs,analysis_subdir='analysis'):
     analysis_dir = os.path.join(session_dir,analysis_subdir)
@@ -129,6 +133,7 @@ def register_fs_to_vasot1(fs_dir,analysis_dir, force=False):
                         fs_dir,
                         'itksnap'],cwd=analysis_dir)
 
+
 def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
     """Applies ANTS non-linear registration transform, consisting of 1. warp and 2. affine to input volume.
     """
@@ -141,7 +146,6 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
                     '-t',affine,
                     '-o',vol_out,
                     '-n','NearestNeighbor'])
-
     # NOTE: It seemed necessary, because the resulting affine from ANTS was not exactly the same as the ref volume
     # (they differ at the 8th decimal after the dot), but why are they not exatly the same?
   
@@ -150,6 +154,7 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
     #nii_vol_out.header.set_qform(nii_ref_vol.header.get_qform())
     #nii_vol_out.header.set_sform(nii_ref_vol.header.get_sform())
     #nib.save(nii_vol_out,vol_out)
+
 
 def import_fs_ribbon_to_func(fs_dir,analysis_dir,force=False):
     """Calls shell script in fmri-analysis/library
@@ -170,6 +175,7 @@ def index_roi(roi,idx):
     """Extracts ROI with a specific index from a multi-index label file.
     """
     return math_img(f'img=={idx}',img=roi)
+
 
 def fs_LR_label_to_fs_volume(ciftify_dir,analysis_dir,labels,hemi,out_basename):
     """Transforms label .gii file in fs_LR space to Freesurfer volume.
@@ -193,7 +199,8 @@ def fs_LR_label_to_fs_volume(ciftify_dir,analysis_dir,labels,hemi,out_basename):
                     white_surf,
                     pial_surf])
     return volume_out
-    
+
+
 def get_fs_LR_atlas_roi(parcel=None,atlas_labels=None,out_basename=None,analysis_dir=None,
                         ciftify_dir=None,fs_to_func_reg=None,force=False):
     """Returns an ROI in functional space by transforming GIFTI label files in fs_LR space. 
@@ -213,6 +220,151 @@ def get_fs_LR_atlas_roi(parcel=None,atlas_labels=None,out_basename=None,analysis
     roi = index_roi(labels_in_func,parcel_idx)
     return roi
 
+
+def fs_annot_to_fs_volume(fs_dir,analysis_dir,annot_file,hemi,out_basename,force=False):
+    if out_basename==None:
+        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '.nii'
+    else:
+        out_file=os.path.join(analysis_dir,out_basename+'_labels_'+hemi+'.nii')
+    
+    subject=os.path.basename(os.path.normpath(fs_dir))
+    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+    my_env = os.environ.copy()
+    my_env['SUBJECTS_DIR'] = subjects_dir
+    
+    if not os.path.isfile(out_file) or force==True:
+        if subprocess.run(['mri_label2vol',
+                           '--annot',annot_file,
+                           '--o',out_file,
+                           '--subject',subject,
+                           '--hemi',hemi,
+                           '--identity',
+                           '--temp',os.path.join(subjects_dir,subject,'mri','ribbon.mgz'),
+                           '--proj','frac','0','1','0.05'],
+                          env=my_env).returncode !=0:
+            return None
+    return out_file
+
+
+def get_fs_annot_roi(parcel=None,annot_files=None,out_basename=None,analysis_dir=None,
+                     fs_dir=None,fs_to_func_reg=None,force=False):
+    hemi = parcel[0]
+    parcel_idx = parcel[1]
+    labels_in_func = os.path.join(analysis_dir,out_basename+'_labels_'+hemi+'_in-func.nii')
+    if not os.path.isfile(labels_in_func) or force==True:
+        labels_in_fs_individual = fs_annot_to_fs_volume(fs_dir,analysis_dir,annot_files[hemi],hemi,out_basename,force)
+        apply_ants_transforms(vol_in=labels_in_fs_individual,
+                              vol_out=labels_in_func,
+                              ref_vol=fs_to_func_reg[0],
+                              affine=fs_to_func_reg[1],
+                              warp=fs_to_func_reg[2])
+    roi = index_roi(labels_in_func,parcel_idx)
+    return roi
+
+
+def reg_feat_to_fs(feat_dir,fs_dir,force=False):
+    subject=os.path.basename(os.path.normpath(fs_dir))
+    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+    my_env = os.environ.copy()
+    my_env['SUBJECTS_DIR'] = subjects_dir
+
+    reg_file = os.path.join(feat_dir,'feat2fs.lta')
+    
+    if not os.path.isfile(reg_file) or force==True:
+        if subprocess.run(['bbregister',
+                           '--mov',os.path.join(feat_dir,'example_func.nii.gz'),
+                           '--bold',
+                           '--s',subject,
+                           '--lta',os.path.join(feat_dir,'feat2fs.lta')],
+                          env=my_env).returncode != 0:
+            return None
+    return reg_file
+
+
+def sample_surf_feat_stat(feat_dir,stat_file,fs_dir,hemi,force=False):
+    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+    my_env = os.environ.copy()
+    my_env['SUBJECTS_DIR'] = subjects_dir
+    surf_suffix = fsl_remove_ext(os.path.basename(os.path.normpath(stat_file))) + '.mgh'
+    out_file = os.path.join(feat_dir,'stats',hemi + '.' + surf_suffix)
+    if not os.path.isfile(out_file) or force==True:
+        if subprocess.run(['mri_vol2surf',
+                           '--mov',os.path.join(feat_dir,'stats',stat_file),
+                           '--reg',os.path.join(feat_dir,'feat2fs.lta'),
+                           '--projfrac','0.5',
+                           '--interp','nearest',
+                           '--hemi',hemi,
+                           '--o',out_file],
+                          env=my_env).returncode != 0:
+            return None
+    return out_file
+
+def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0,force=False):
+    if out_file==None:
+        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '_smooth.mgh'
+    subject=os.path.basename(os.path.normpath(fs_dir))
+    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+    my_env = os.environ.copy()
+    my_env['SUBJECTS_DIR'] = subjects_dir
+    if not os.path.isfile(out_file) or force==True:
+        if subprocess.run(['mri_surf2surf',
+                           '--hemi',hemi,
+                           '--s','freesurfer',
+                           '--fwhm',str(fwhm),
+                           '--cortex',
+                           '--sval', in_file,
+                           '--tval', out_file],
+                          env=my_env).returncode != 0:
+            return None
+    return out_file
+
+
+def cluster_surf(in_file,out_file=None,threshold=3,fs_dir=None,hemi=None,force=False):
+    if out_file==None:
+        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '_clusters.annot'
+
+    subject=os.path.basename(os.path.normpath(fs_dir))
+    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+    my_env = os.environ.copy()
+    my_env['SUBJECTS_DIR'] = subjects_dir
+    
+    if not os.path.isfile(out_file) or force==True:
+        if subprocess.run(['mri_surfcluster',
+                           '--in',in_file,
+                           '--thmin',str(threshold),
+                           '--sign','pos',
+                           '--hemi',hemi,
+                           '--subject', subject,
+                           '--oannot',out_file],
+                          env=my_env).returncode !=0:
+            return None
+    return out_file
+
+
+def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=None,feat_dir=None,
+                    stat_name='zstat1',fwhm=5,funcloc_labels=None,force=False):
+    if feat_dir == None:
+        feat_dir = os.path.join(analysis_dir,'funcloc.feat')
+    stat_file = os.path.join(feat_dir,'stats',stat_name+'.nii.gz')
+
+    if not os.path.isfile(os.path.join(feat_dir,'feat2fs.lta')):
+        reg_feat_to_fs(feat_dir,fs_dir)
+
+    funcloc_labels = dict()
+    for hemi in ['lh','rh']:
+        # 1. take activation map and project to surface
+        stat_surf = sample_surf_feat_stat(feat_dir,stat_file,fs_dir,hemi,force=force)
+        # 2. smooth on surface
+        stat_surf_smooth = smooth_surf(stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm,force=force)
+        # 3. generate activation clusters
+        funcloc_labels[hemi] = cluster_surf(stat_surf_smooth,fs_dir=fs_dir,hemi='lh',force=force)
+        # 4. transform cluster label files to volume
+    out_basename='funcloc'
+    roi = get_fs_annot_roi(parcel,funcloc_labels,out_basename,analysis_dir,fs_dir,
+                           fs_to_func_reg,force)
+    return roi                     
+
+
 def get_md_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=None,
                md_labels=None,force=False):
     """Returns a multiple-demand network ROI (Moataz et al. 2020) transformed to functional space
@@ -224,7 +376,8 @@ def get_md_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=Non
     roi = get_fs_LR_atlas_roi(parcel,md_labels,out_basename,analysis_dir,ciftify_dir,
                               fs_to_func_reg,force)
     return roi
-    
+
+
 def get_glasser_roi(parcel=None,analysis_dir=None,ciftify_dir=None,fs_to_func_reg=None,
                     glasser_labels=None,force=False):
     """Returns a HCP MMP 1.0 atlas ROI (Glasser et al. 2016) transformed to functional space
@@ -246,6 +399,7 @@ def calc_stim_times(onset_delay, trial_duration, trial_order, condition_names=No
         stim_times[condition] = t[np.array(trial_order)==condition]
     return stim_times
 
+
 def write_stim_time_files(stim_times_runs,cwd=None):
     if cwd==None:
         cwd=os.path.curdir()
@@ -262,8 +416,9 @@ def write_stim_time_files(stim_times_runs,cwd=None):
                 print(*stim_times[condition],file=file)
     return condition_stim_files
 
+
 def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
-                                out_files_basename,polort=5,onset_shift=0,cwd=None):
+                                out_files_basename,polort=5,onset_shift=0,cwd=None,force=None):
     if cwd==None:
         cwd=os.path.dirname(os.path.normpath(in_files[0]))
     n_files = len(in_files)
@@ -276,6 +431,19 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
     # prepare stim times and model
     condition_stim_files = write_stim_time_files(stim_times_runs,cwd)
     n_conditions = len(condition_stim_files)
+
+    trialavg_files=[]
+    for i in range(n_conditions):
+        condition = condition_stim_files[i][0]
+        trialavg_files.append(os.path.join(cwd,out_files_basename + f"_response_condition_{condition}.nii"))
+    baseline_file = os.path.join(cwd,out_files_basename + '_baseline.nii')
+    fstat_file = os.path.join(cwd,out_files_basename + '_fstat.nii')
+
+    if (all([os.path.isfile(file) for file in trialavg_files]) \
+                              and os.path.isfile(baseline_file) \
+                              and os.path.isfile(fstat_file) and force==False):
+        return trialavg_files, baseline_file, fstat_file
+
     stim_times=[]
     stim_label=[]
     i_condition = 0
@@ -292,12 +460,9 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
     deconvolve.inputs.local_times = True
     deconvolve.inputs.fout = True
     deconvolve.inputs.cbucket = os.path.join(cwd,out_files_basename + '_cbucket.nii.gz')
-#    deconvolve.inputs.out_file = os.path.join(cwd,out_files_basename + '_Deconvolve.nii.gz')
     deconvolve.inputs.args ='-overwrite'
     deconvolve.inputs.stim_times_subtract = onset_shift
-    #print(deconvolve.cmdline)
     result = deconvolve.run(cwd=cwd)
-    #return
     # extract fstat
     result_fstat = TCatSubBrick(in_files=[(result.outputs.out_file,f"'[0]'")],
                                 out_file = os.path.join(cwd,out_files_basename + '_fstat.nii'),
@@ -312,7 +477,6 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
     result_baseline = TStat(in_file=os.path.join(cwd,out_files_basename + '_baseline_runs.nii'),
                             args='-mean -overwrite',
                             out_file=os.path.join(cwd,out_files_basename + '_baseline.nii')).run()
-    trialavg_files=[]
     for i in range(n_conditions):
         condition = condition_stim_files[i][0]
         result_condition_diffresponse_timecourse = TCatSubBrick(
@@ -326,44 +490,61 @@ def average_trials_3ddeconvolve(in_files,stim_times_runs,trial_duration,
             out_file=os.path.join(cwd,out_files_basename + f"_response_condition_{condition}.nii"),
             expr='a+b',
             args='-overwrite').run()
-        trialavg_files.append(result_condition_response_timecourse.outputs.out_file)
         
     baseline_file = os.path.join(cwd,out_files_basename + '_baseline.nii')
     fstat_file = os.path.join(cwd,out_files_basename + '_fstat.nii')
     return trialavg_files, baseline_file, fstat_file
 
-def calc_percent_change_trialavg(trialavg_files,baseline_file,inv_change=False):    
+
+def calc_percent_change_trialavg(trialavg_files,baseline_file,inv_change=False,force=False):    
+    if inv_change:
+        expr='100-(100*a/b)'
+    else:
+        expr='100*a/b-100'
     prc_change = []
     for trialavg_file in trialavg_files:
-        if inv_change:
-            expr='100-(100*a/b)'
-        else:
-            expr='100*a/b-100'
         trialavg_file_split = os.path.splitext(trialavg_file)
         out_file = trialavg_file_split[0] + '_prcchg' + trialavg_file_split[1]
-        result_prcchg = Calc(
-            in_file_a=trialavg_file,
-            in_file_b=baseline_file,
-            out_file=out_file,
-            expr=expr,
-            args='-overwrite').run()
-        prc_change.append(result_prcchg.outputs.out_file)
+        if not os.path.isfile(out_file) or force==True:
+            result_prcchg = Calc(
+                in_file_a=trialavg_file,
+                in_file_b=baseline_file,
+                out_file=out_file,
+                expr=expr,
+                args='-overwrite').run()            
+            prc_change.append(result_prcchg.outputs.out_file)
+        else:
+            prc_change.append(out_file)
     return prc_change
 
 
-def plot_roi_tcrs(file_list,roi,xlabel='volume',ylabel='signal'):
+def plot_roi_tcrs(file_list,roi,xlabel='volume',ylabel='signal',run_type=None):
+    if run_type is not None:
+        if run_type=='alpha-rem':
+            labels=['rem','alpha']
+            colors=['tab:green','tab:blue']
+        elif run_type=='go-nogo':
+            labels=['nogo','go']
+            colors=['tab:orange','tab:red']
+        else:
+            labels=None
+            color=None
     df_dict = dict()
     condition_idx = 0
-    for file in file_list:
+    for i,file in enumerate(file_list):
         condition_idx = condition_idx + 1
         condition_data = sample_timecourse(file,roi)
         df = pd.DataFrame(condition_data,index=np.arange(condition_data.shape[0])).stack()
-        df_dict['cond_'+str(condition_idx)] = df
+        if labels is not None:
+            df_dict[labels[i]] = df
+        else:
+            df_dict['cond_'+str(condition_idx)] = df
     data = pd.concat(df_dict).reset_index()
     data.columns=['condition','volume','voxel','signal']
-    ax = sns.lineplot(x='volume',y='signal',hue='condition',data=data,ci=68)
+    ax = sns.lineplot(x='volume',y='signal',hue='condition',data=data,ci=68,palette=colors)
     ax.legend(loc='best')
 
+    
 def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=None,periods=None,events=None):
     """ Plots time course for multiple conditions. All timecourses should have the same length.
     """
@@ -388,143 +569,18 @@ def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=No
     for event in (events or []):
         ax.axvline(event[1],color='gray',lw=0.5)
         ax.annotate(event[0],(event[1],y0),ha='center',va='bottom')
+
+    # REMOVE ME LATER:
+    ax.axis([0,30,-0.4,1.2])
     return ax
 
-
-def preprocess_funcloc(data):
-    # motion correction
-    
-    # spatial smoothing
-
-    # high pass filtering
-
-    # register to freesurfer
-
-    pass
-
-def feat_analysis(feat_dir,fsf_template):
-    pass
-
-
-
-def reg_feat_to_fs(feat_dir,fs_dir,force=False):
-    subject=os.path.basename(os.path.normpath(fs_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
-    my_env = os.environ.copy()
-    my_env['SUBJECTS_DIR'] = subjects_dir
-
-    reg_file = os.path.join(feat_dir,'feat2fs.lta')
-    
-    if os.path.isfile(
-    if subprocess.run(['bbregister',
-                       '--mov',os.path.join(feat_dir,'example_func.nii.gz'),
-                       '--bold',
-                       '--s',subject,
-                       '--lta',os.path.join(feat_dir,'feat2fs.lta')],
-                      env=my_env).returncode == 0:
-        return os.path.join(feat_dir,'feat2fs.lta')
-
-def sample_surf_feat_stat(feat_dir,stat_file,fs_dir,hemi):
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
-    my_env = os.environ.copy()
-    my_env['SUBJECTS_DIR'] = subjects_dir
-    surf_suffix = fsl_remove_ext(os.path.basename(os.path.normpath(stat_file))) + '.mgh'
-    out_file = os.path.join(feat_dir,'stats',hemi + '.' + surf_suffix)
-    if subprocess.run(['mri_vol2surf',
-                       '--mov',os.path.join(feat_dir,'stats',stat_file),
-                       '--reg',os.path.join(feat_dir,'feat2fs.lta'),
-                       '--projfrac','0.5',
-                       '--interp','nearest',
-                       '--hemi',hemi,
-                       '--o',out_file],
-                      env=my_env).returncode == 0:
-        return out_file
-
-def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0):
-    if out_file==None:
-        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '_smooth.mgh'
-    subject=os.path.basename(os.path.normpath(fs_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
-    my_env = os.environ.copy()
-    my_env['SUBJECTS_DIR'] = subjects_dir
-    if subprocess.run(['mri_surf2surf',
-                       '--hemi',hemi,
-                       '--s','freesurfer',
-                       '--fwhm',str(fwhm),
-                       '--cortex',
-                       '--sval', in_file,
-                       '--tval', out_file],
-                      env=my_env).returncode == 0:
-        return out_file
-
-
-def surf_activation_clusters(surf,cluster_surf=None,threshold=3,fs_dir=None,hemi=None):
-    TODO: WIP
-    if cluster_surf==None:
-        out_file=os.path.splitext(os.path.normpath(cluster_surf))[0] + '_smooth.mgh'
-    subject=os.path.basename(os.path.normpath(fs_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
-    my_env = os.environ.copy()
-    my_env['SUBJECTS_DIR'] = subjects_dir
-  
-
-def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=None,feat_dir=None):
-    stat_name='zstat1'
-    fwhm=5
-    if feat_dir == None:
-        feat_dir = os.path.join(analysis_dir,'funcloc.feat')
-    stat_file = os.path.join(feat_dir,'stats',stat_name+'.nii.gz')
-    # follow previous code, but think about better organization of ROIs, possibly in a single file?
-    # assume we have functional activation maps and a functional to FS registration
-    if not os.path.isfile(os.path.join(feat_dir,'feat2fs.lta')):
-        reg_feat_to_fs(feat_dir,fs_dir)
-    for hemi in ['lh','rh']:
-        # 1. take activation map and project to surface
-        stat_surf = sample_surf_feat_stat(feat_dir,stat_file,fs_dir,hemi)
-        # 2. smooth on surface
-        stat_surf_smooth = smooth_surf(stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm)
-        # 3. generate activation clusters
-        
-        # 4. transform cluster label files to volume
-        # 5. non-linearily transform to func
-
-    return None
-
-def cluster_surf():
-    subject=os.path.basename(os.path.normpath(feat_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(feat_dir))
-    my_env = os.environ.copy()
-    my_env['SUBJECTS_DIR'] = subjects_dir
-    subprocess.run(['mri_surfcluster',
-                    '--in',os.path.join(feat_dir,'stats',hemi + '.zstat1_smooth.mgh'),
-                    '--thmin','3',
-                    '--sign','pos',
-                    '--hemi',hemi,
-                    '--subject', subjects,
-                    '--o',os.path.join(feat_dir,'stats',hemi + '.zstat1_smooth_clusters.mgh'),
-                    '--olab',os.path.join(feat_dir,'stats',hemi+'.zstat1_smooth_clusters.label')],
-                   env=my_env)
-
-
-def fs_surf_to_fs_volume():
-    pass
-
-def get_mni_coord_roi():
-    # generate an ROI based on mni coordinates and a radius around
-    # (
-    pass
-
-def layer_extend_roi_laynii():
-    pass
-                    
-def layer_extend_roi_vfs(roi):
-    pass
 
 def add_prefix_to_nifti_basename(path,prefix):
     norm_path = os.path.normpath(path)
     dir_name = os.path.dirname(norm_path)
     base_name = os.path.basename(norm_path)
     return(os.path.join(dir_name,prefix+base_name))    
+
 
 def add_postfix_to_nifti_basename(path,postfix):
     norm_path = os.path.normpath(path)
@@ -578,56 +634,28 @@ def roi_and(roi1,roi2):
     
     return intersect_masks((roi1,roi2), threshold=1, connected=False)
 
-def get_funcact_roi_other_versions():
-    # not clear yet what to do here, possibly manual deliniation needed
-    # then fill out entire GM
-    # alternatively go to surface, smooth and back?
-    # choose cluster within region/ close to coordinates?
-    # apply activation mask to one of the above ROI definitions?
-    pass
-
-
-# functional processing
-def initialize_session():
-    pass
-
-def motion_correction():
-    pass
-
-def trial_averaging():
-    pass
-
-def glm_analysis():
-    pass
-
-def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None):
+def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None,force=None):
     """ notnulled_shift should equal (positive) difference between readout blocks
     """
-    if notnulled_shift is not None:
-        slicetimer_result = SliceTimer(in_file=notnulled_file,
-                                       global_shift=-notnulled_shift)
-        notnulled_file = slicetimer_result.outputs.out_file
+    if not os.path.isfile(out_file) or force==True:
+        if notnulled_shift is not None:
+            slicetimer_result = SliceTimer(in_file=notnulled_file,
+                                           global_shift=-notnulled_shift)
+            notnulled_file = slicetimer_result.outputs.out_file
 
-    my_env=os.environ.copy()
-        
-    if os.path.normpath(out_file)[-3:]=='nii':
-        my_env['FSLOUTPUTTYPE'] = 'NIFTI'
-    elif  os.path.normpath(out_file)[-6:]=='nii.gz':
-        my_env['FSLOUTPUTTYPE'] = 'NIFTI_GZ'
-            
-    subprocess.run(['fslmaths',
-                    nulled_file,'-div', notnulled_file,
-                    '-max','0',
-                    '-min','5',
-                    out_file],env=my_env)
+        my_env=os.environ.copy()
+
+        if os.path.normpath(out_file)[-3:]=='nii':
+            my_env['FSLOUTPUTTYPE'] = 'NIFTI'
+        elif  os.path.normpath(out_file)[-6:]=='nii.gz':
+            my_env['FSLOUTPUTTYPE'] = 'NIFTI_GZ'
+
+        subprocess.run(['fslmaths',
+                        nulled_file,'-div', notnulled_file,
+                        '-max','0',
+                        '-min','5',
+                        out_file],env=my_env)
     return out_file
-
-def normalize():
-    # Normalizes single voxel timecourses to change relative to a baselne
-    pass
-
-def avg_timcourse_nearest_volume():
-                    pass
                     
 def sample_timecourse(func_filename,roi):
     masked_data=apply_mask(func_filename,roi)
@@ -691,16 +719,26 @@ def sample_layer_profile(data,roi,depths,n_layers):
         y[i] = np.mean(data[depths==i])
     return y, (np.arange(n_layers)+0.5)/n_layers
 
-def plot_timecourses():
-    pass
-
-def plot_profile(data,roi,depths,n_layers):
+def plot_profiles(data_list,roi,depths,n_layers,colors=None,labels=None):
     ax = plt.axes()
-    voxel_responses, voxel_depths = sample_depths(data,roi,depths)
-    ax.plot(voxel_depths,voxel_responses,'.',alpha=0.1)
-    layer_responses,layer_depths = sample_layer_profile(data,roi,depths,n_layers)
-    ax.plot(layer_depths,layer_responses)
+    line_handles = []
+    for i,data in enumerate(data_list):
+        voxel_responses, voxel_depths = sample_depths(data,roi,depths)
+        if colors is not None:
+            color=colors[i]
+        else:
+            prop_cycle = plt.rcParams['axes.prop_cycle']
+            color = prop_cycle.by_key()['color'][i]
+        layer_responses,layer_depths = sample_layer_profile(data,roi,depths,n_layers)
+        ax.plot(1-voxel_depths,voxel_responses,'.',alpha=0.2,color=color)        
+        l, =  ax.plot(1-layer_depths,layer_responses,color=color,lw=2)
+        line_handles.append(l)
+        ax.set_xticks([0,1])
+        ax.set_xticklabels(['CSF|GM','GM|WM'])
+        if labels:
+            ax.legend(line_handles,labels,loc='best')
     return ax
+
 
 def upsample(in_file, out_file, factor, method):
     voxel_widths = np.array(nib.load(in_file).header.get_zooms())
@@ -808,7 +846,8 @@ def plot_finn_tcrs(fnamebase,modality,TR=3.702):
     fig.text(0.08,0.85,'superficial',ha='right',weight='bold')
     fig.suptitle(modality.upper(),weight='bold')
 
-def finn_trial_averaging(run_type,analysis_dir):
+
+def finn_trial_averaging(run_type,analysis_dir,force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -821,25 +860,25 @@ def finn_trial_averaging(run_type,analysis_dir):
         average_trials_3ddeconvolve(in_files_bold,                                                                                                            stim_times_runs,
                                     trial_duration,
                                     out_files_basename='trialavg1_bold_' + run_type,
-                                    polort=5)
+                                    polort=5,force=force)
     
     trialavg_files_vaso, baseline_file_vaso, fstat_file_vaso = \
         average_trials_3ddeconvolve(in_files_vaso,
                                     stim_times_runs,
                                     trial_duration,
                                     out_files_basename='trialavg1_vaso_' + run_type,
-                                    polort=5)
+                                    polort=5,force=force)
     
     trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_bold,
                                                         baseline_file_bold,
-                                                        inv_change=False)
+                                                        inv_change=False,force=force)
     trialavg_vaso_prcchg = calc_percent_change_trialavg(trialavg_files_vaso,
                                                         baseline_file_vaso,
-                                                        inv_change=True)
+                                                        inv_change=True,force=force)
 
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
 
-def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1):
+def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1,force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -854,7 +893,7 @@ def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1):
                                     stim_times_runs,
                                     trial_duration,
                                     out_files_basename='trialavg2_nulled',
-                                    polort=5)
+                                    polort=5,force=force)
     
     trialavg_files_notnulled, baseline_file_notnulled, fstat_file_notnulled = \
         average_trials_3ddeconvolve(in_files_notnulled,
@@ -862,27 +901,28 @@ def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1):
                                     trial_duration,
                                     out_files_basename='trialavg2_notnulled',
                                     polort=5,
-                                    onset_shift=TR1)
+                                    onset_shift=TR1,force=force)
   
     trialavg_files_vaso = [bold_correct(trialavg_files_nulled[0],trialavg_files_notnulled[0],
-                                        trialavg_files_nulled[0].replace('nulled','vaso')),
+                                        trialavg_files_nulled[0].replace('nulled','vaso'),force=force),
                            bold_correct(trialavg_files_nulled[1],trialavg_files_notnulled[1],
-                                        trialavg_files_nulled[1].replace('nulled','vaso'))]
+                                        trialavg_files_nulled[1].replace('nulled','vaso'),force=force)]
                                                                                  
     baseline_file_vaso = bold_correct(baseline_file_nulled,baseline_file_notnulled,
-                                      baseline_file_nulled.replace('nulled','vaso'))
+                                      baseline_file_nulled.replace('nulled','vaso'),force)
         
     trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_notnulled,
                                                         baseline_file_notnulled,
-                                                        inv_change=False)
+                                                        inv_change=False,force=force)
 
     trialavg_vaso_prcchg = calc_percent_change_trialavg(trialavg_files_vaso,
                                                         baseline_file_vaso,
-                                                        inv_change=True)
+                                                        inv_change=True,force=force)
 
     fstat_file_bold = fstat_file_notnulled
     
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_nulled
+
 
 # Define a function to obtain some paradigm related info. (For now trial order, TODO: trial period timings, GLM events, ...)
 # we need:
@@ -922,3 +962,69 @@ def paradigm(run_type):
             trial_order=[4,5,5,5,4,4,5,4,5,5,4,4,4,5,4,5,5,5,4,4]
     
     return trial_order
+
+
+### TODO or obsolete:
+
+def preprocess_funcloc(data):
+    # motion correction
+    
+    # spatial smoothing
+
+    # high pass filtering
+
+    # register to freesurfer
+
+    pass
+
+def feat_analysis(feat_dir,fsf_template):
+    pass
+
+
+def fs_surf_to_fs_volume():
+    pass
+
+def get_mni_coord_roi():
+    # generate an ROI based on mni coordinates and a radius around
+    # (
+    pass
+
+def layer_extend_roi_laynii():
+    pass
+                    
+def layer_extend_roi_vfs(roi):
+    pass
+
+def plot_timecourses():
+    pass
+
+def normalize():
+    # Normalizes single voxel timecourses to change relative to a baselne
+    pass
+
+def avg_timcourse_nearest_volume():
+    pass
+
+
+def get_funcact_roi_other_versions():
+    # not clear yet what to do here, possibly manual deliniation needed
+    # then fill out entire GM
+    # alternatively go to surface, smooth and back?
+    # choose cluster within region/ close to coordinates?
+    # apply activation mask to one of the above ROI definitions?
+    pass
+
+
+# functional processing
+def initialize_session():
+    pass
+
+def motion_correction():
+    pass
+
+def trial_averaging():
+    pass
+
+def glm_analysis():
+    pass
+
