@@ -156,13 +156,11 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
                     '-n','NearestNeighbor'])
     # NOTE: It seemed necessary, because the resulting affine from ANTS was not exactly the same as the ref volume
     # (they differ at the 8th decimal after the dot), but why are they not exatly the same?
-  
     #nii_vol_out = nib.load(vol_out)
     #nii_ref_vol = nib.load(ref_vol)
     #nii_vol_out.header.set_qform(nii_ref_vol.header.get_qform())
     #nii_vol_out.header.set_sform(nii_ref_vol.header.get_sform())
     #nib.save(nii_vol_out,vol_out)
-
 
 def import_fs_ribbon_to_func(fs_dir,analysis_dir,force=False):
     """Calls shell script in fmri-analysis/library
@@ -355,7 +353,7 @@ def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=Non
         feat_dir = os.path.join(analysis_dir,'funcloc.feat')
     stat_file = os.path.join(feat_dir,'stats',stat_name+'.nii.gz')
 
-    if not os.path.isfile(os.path.join(feat_dir,'feat2fs.lta')):
+    if not os.path.isfile(os.path.join(feat_dir,'feat2fs.lta')) or force==True:
         reg_feat_to_fs(feat_dir,fs_dir)
 
     funcloc_labels = dict()
@@ -365,7 +363,7 @@ def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=Non
         # 2. smooth on surface
         stat_surf_smooth = smooth_surf(stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm,force=force)
         # 3. generate activation clusters
-        funcloc_labels[hemi] = cluster_surf(stat_surf_smooth,fs_dir=fs_dir,hemi='lh',force=force)
+        funcloc_labels[hemi] = cluster_surf(stat_surf_smooth,fs_dir=fs_dir,hemi=hemi,force=force)
         # 4. transform cluster label files to volume
     out_basename='funcloc'
     roi = get_fs_annot_roi(parcel,funcloc_labels,out_basename,analysis_dir,fs_dir,
