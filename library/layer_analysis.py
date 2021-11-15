@@ -977,8 +977,24 @@ def preprocess_funcloc(data):
 
     pass
 
-def feat_analysis(feat_dir,fsf_template):
-    pass
+def feat_analysis(feat_template,func_file,output_dir,stim_timings_dir,smoothing_fwhm=0):
+    cwd = os.path.dirname(os.path.normpath(output_dir))
+    feat_template_base = os.path.basename(os.path.normpath(feat_template))
+    print(cwd)
+    # copy
+    subprocess.run(['cp',feat_template,'.'],cwd=cwd)
+    # edit
+    subprocess.run(['sed','-i','-e',f's|templateVar_FuncFile|{func_file}|g',
+                    feat_template_base],cwd=cwd)
+    subprocess.run(['sed','-i','-e',f's|templateVar_OutputDir|{output_dir}|g',
+                    feat_template_base],cwd=cwd)
+    subprocess.run(['sed','-i','-e',f's|templateVar_StimTimingsDir|{stim_timings_dir}|g',
+                    feat_template_base],cwd=cwd)
+    subprocess.run(['sed','-i','-e',f's|templateVar_SmoothingFWHM|{smoothing_fwhm}|g',
+                    feat_template_base],cwd=cwd)
+    # run feat
+    subprocess.run(['feat',feat_template_base],cwd=cwd)
+    return output_dir
 
 
 def fs_surf_to_fs_volume():
