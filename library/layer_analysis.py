@@ -551,7 +551,8 @@ def plot_roi_tcrs(file_list,roi,xlabel='volume',ylabel='signal',run_type=None):
     ax.legend(loc='best')
 
     
-def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=None,periods=None,events=None):
+def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=None,periods=None,
+                   events=None):
     """ Plots time course for multiple conditions. All timecourses should have the same length.
     """
     if ax==None:
@@ -706,23 +707,36 @@ def generate_two_layers(analysis_dir,depths,delta=0,roi=None):
     nib.save(superficial, os.path.join(analysis_dir,'superficial.nii'))
     nib.save(deeper, os.path.join(analysis_dir,'deeper.nii'))
 
+def reset_affine(img):
+    img_reset = copy.deepcopy(check_niimg(img,dtype='auto'))
+    img_reset.set_qform(np.eye(4))
+    img_reset.set_sform(np.eye(4))
+    return img_reset
+    
+def sample_roi(data,roi):
+    # assume voxel matrix of data, roi correspond to each other
+    data_reset = reset_affine(data)
+    roi_reset = reset_affine(roi)
+    
+    masked_data=apply_mask(data_reset,roi_reset)
+    return masked_data
+
+def average_roi(data,roi):
+    # assume voxel matrix of data, roi correspond to each other
+    data_reset = reset_affine(data)
+    roi_reset = reset_affine(roi)
+
+    masked_data = sample_roi(data_reset,roi_reset)
+    return np.mean(masked_data), np.std(masked_data), np.size(masked_data)
+    
 def sample_depths(data,roi,depths):
-    # assume voxel matrix of data, roi and depths corresponds to each other
-    data = copy.deepcopy(check_niimg(data,dtype='auto'))
-    roi = copy.deepcopy(check_niimg(roi,dtype='auto'))
-    depths = copy.deepcopy(check_niimg(depths,dtype='auto'))
-
-    data.set_qform(np.eye(4))
-    data.set_sform(np.eye(4))
+    # assume voxel matrix of data, roi correspond to each other
+    data_reset = reset_affine(data)
+    roi_reset = reset_affine(roi)
+    depths_reset = reset_affine(depths)
     
-    roi.set_qform(np.eye(4))
-    roi.set_sform(np.eye(4))
-
-    depths.set_qform(np.eye(4))
-    depths.set_sform(np.eye(4))
-    
-    masked_data=apply_mask(data,roi)
-    masked_depths=apply_mask(depths,roi)
+    masked_data=apply_mask(data_reset,roi_reset)
+    masked_depths=apply_mask(depths_reset,roi_reset)
     return masked_data, masked_depths
 
 def sample_layer_profile(data,roi,depths,n_layers):
