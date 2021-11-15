@@ -747,7 +747,6 @@ def plot_profiles(data_list,roi,depths,n_layers,colors=None,labels=None):
             ax.legend(line_handles,labels,loc='best')
     return ax
 
-
 def upsample(in_file, out_file, factor, method):
     voxel_widths = np.array(nib.load(in_file).header.get_zooms())
     scaled_voxel_widths = voxel_widths/factor
@@ -760,10 +759,41 @@ def upsample(in_file, out_file, factor, method):
                     '-overwrite',
                     '-prefix',out_file,
                     '-input',in_file])
-    
 
+
+def get_labels_data(data_file,labels_file,print_results=False,label_names=None,mask=None,layers=None):
+    labels_data = nib.load(labels_file).get_fdata()
+    labels = np.unique(labels_data)
+    df = pd.DataFrame()
+    for label in labels:
+        if label !=0:
+            if label_names is None:
+                label_name = str(int(label))
+            else:
+                label_name=label_names[int(label)-1]
+            roi = index_roi(labels_file,label)
+            if mask is not None:
+                roi = roi_and(roi,mask)
+            if np.any(roi.get_fdata()):
+                d = sample_roi(data_file,roi)
+                if layers is not None:
+                    l = sample_roi(layers,roi)
+                    df = df.append(pd.DataFrame({'value':d,'layer':l}).assign(label=label_name))
+                else:
+                    df = df.append(pd.DataFrame({'value':d}).assign(label=label_name))
+                if print_results:
+                    m,s,n = average_roi(data_file,roi)
+                    print(f'{label_name}: {m:2.2f} +- {s/np.sqrt(n):2.2f} (n={int(n)})')
+    return df
+
+def get_labels_data_layers(data_file,labels_file,print_results=False,label_names=None):
+    pass
+
+def get_labels_data_layers_masked(data_file,labels_file,print_results=False,label_names=None):
+    pass
+    
 ### FinnReplicationPilot specifc functions
-def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0):
+def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0,TR=3.702):
     condition_data = []
     for file in trialavg_data:
         sampled_data, sampled_depths = sample_depths(file,roi,depths)
@@ -779,30 +809,33 @@ def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0):
         labels=['nogo','go']
         colors=['tab:orange','tab:red']
         
-    plot_cond_tcrs(condition_data,TR=3.702,
+    plot_cond_tcrs(condition_data,TR=TR,
                    labels=labels,
                    colors=colors,
                    periods=[[4,14],[14,20]],
                    events=[['Stim',0],['Cue',4],['Probe',14]],ax=ax)
     plt.title(layers)
     
-def plot_finn_tcrses(depths,roi,trialavg_alpharem,trialavg_gonogo,d=0):
+def plot_finn_tcrses(depths,roi,trialavg_alpharem,trialavg_gonogo,d=0,TR=3.702):
     if type(depths)==str:
         depths = nib.load(depths)
         
     fig=plt.figure(figsize=(10,8), dpi= 100, facecolor='w', edgecolor='k')
     ax = plt.subplot(2,2,1)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','superficial',ax,d)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','superficial',ax,d,TR=TR)
+    ax.axis([0,30,-0.5, 1.5])
                     
     ax = plt.subplot(2,2,2)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','superficial',ax,d)
+    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','superficial',ax,d,TR=TR)
+    ax.axis([0,30,-0.5, 1.5])
     
     ax = plt.subplot(2,2,3)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','deep',ax,d)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','deep',ax,d,TR=TR)
+    ax.axis([0,30,-0.5, 1.5])
     
     ax = plt.subplot(2,2,4)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','deep',ax,d)
-
+    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','deep',ax,d,TR=TR)
+    ax.axis([0,30,-0.5, 1.5])
 def get_finn_tcrs_data(trial_averages,roi,):
     data = dict()
     for layer in layers:
