@@ -24,6 +24,12 @@ do
     # split into nulled and bold (not nulled)
     3dTcat -prefix ${fBaseName}_nulled.nii ${inFileName}'[1..$(2)]'
     3dTcat -prefix ${fBaseName}_notnulled.nii ${inFileName}'[2..$(2)]'
+
+    # make sure sform matches qform
+    #fslorient -copyqform2sform  ${fBaseName}_nulled.nii
+    #fslorient -copyqform2sform  ${fBaseName}_notnulled.nii    
+
+    fslhd ${fBaseName}_nulled.nii
     
     # set TR
     3drefit -TR $TR ${fBaseName}_nulled.nii
@@ -38,4 +44,5 @@ do
            ${fBaseName}_notnulled.nii'[2..$]'
 
     echo ${fBaseName} >> ${fBase}_runs_basenames.txt
+    fslhd ${fBaseName}_nulled.nii
 done
