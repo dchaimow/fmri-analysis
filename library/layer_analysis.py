@@ -865,7 +865,7 @@ def finn_trial_averaging(run_type,analysis_dir,force=False):
     stim_times_runs = [calc_stim_times(onset_delay=8,trial_duration=trial_duration,
                                        trial_order=trial_order)]
     trialavg_files_bold, baseline_file_bold, fstat_file_bold = \
-        average_trials_3ddeconvolve(in_files_bold,                                                                                                            stim_times_runs,
+        average_trials_3ddeconvolve(in_files_bold,                                                                                                   stim_times_runs,
                                     trial_duration,
                                     out_files_basename='trialavg1_bold_' + run_type,
                                     polort=5,force=force)
@@ -900,14 +900,14 @@ def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1,force=False)
         average_trials_3ddeconvolve(in_files_nulled,
                                     stim_times_runs,
                                     trial_duration,
-                                    out_files_basename='trialavg2_nulled',
+                                    out_files_basename='trialavg2_nulled_' + run_type,
                                     polort=5,force=force)
     
     trialavg_files_notnulled, baseline_file_notnulled, fstat_file_notnulled = \
         average_trials_3ddeconvolve(in_files_notnulled,
                                     stim_times_runs,
                                     trial_duration,
-                                    out_files_basename='trialavg2_notnulled',
+                                    out_files_basename='trialavg2_notnulled_' + run_type,
                                     polort=5,
                                     onset_shift=TR1,force=force)
   
@@ -917,7 +917,7 @@ def finn_trial_averaging_with_boldcorrect(run_type,analysis_dir,TR1,force=False)
                                         trialavg_files_nulled[1].replace('nulled','vaso'),force=force)]
                                                                                  
     baseline_file_vaso = bold_correct(baseline_file_nulled,baseline_file_notnulled,
-                                      baseline_file_nulled.replace('nulled','vaso'),force)
+                                      baseline_file_nulled.replace('nulled','vaso'),force=force)
         
     trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_notnulled,
                                                         baseline_file_notnulled,
