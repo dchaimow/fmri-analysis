@@ -17,9 +17,9 @@ def img_to_voxel_space(img):
     else:
         return None
     
-def plot_anat(img):
+def plot_anat(img,cut_coords=None):
     img = img_to_voxel_space(img)
-    nl_plotting.plot_anat(img,display_mode='z')
+    nl_plotting.plot_anat(img,display_mode='z',cut_coords=cut_coords)
 
 def plot_epi(img):
     img = img_to_voxel_space(img)
@@ -30,9 +30,24 @@ def plot_stat_map(stat_map_img,bg_img,threshold=1e-06):
     bg_img = img_to_voxel_space(bg_img)
     nl_plotting.plot_stat_map(stat_map_img=stat_map_img,bg_img=bg_img,display_mode='z',threshold=threshold)
 
-def plot_roi(roi_img,bg_img):
+def plot_roi(roi_img,bg_img,display_mode='z',cut_coords=None,cmap=None):
     roi_img = img_to_voxel_space(roi_img)
     bg_img = img_to_voxel_space(bg_img)
-    nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z')
-#    nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z',colorbar=True,cmap='Paired')
+    nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode=display_mode,
+                         cmap=cmap,cut_coords=cut_coords)
+#   nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z',colorbar=True,cmap='Paired')
 
+def plot_labels(roi_img,bg_img,display_mode='z',cut_coords=None,cmap=None):
+    roi_img = img_to_voxel_space(roi_img)
+    bg_img = img_to_voxel_space(bg_img)
+    img = roi_img.get_fdata()
+    labels = np.unique(img)
+    img_new_labels = np.zeros(img.shape,dtype=np.int)
+    for i,label in enumerate(labels):
+        if i!=0:
+            img_new_labels[img==label] = i
+            print(i,label)
+    roi = nib.Nifti2Image(img_new_labels,roi_img.affine)
+    nl_plotting.plot_roi(roi_img=roi,bg_img=bg_img,display_mode=display_mode,
+                         cmap=cmap,cut_coords=cut_coords)
+#   nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z',colorbar=True,cmap='Paired')
