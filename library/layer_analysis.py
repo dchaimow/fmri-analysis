@@ -637,8 +637,12 @@ def get_funcact_roi_vfs(act_file,columns_file,roi_out_file,threshold=1):
     return mask_nii
 
 def roi_and(roi1,roi2):
-    
+    # TODO: change to list as roi input!
     return intersect_masks((roi1,roi2), threshold=1, connected=False)
+
+def roi_or(rois):
+    return intersect_masks(rois, threshold=0, connected=False)
+
 
 def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None,force=None):
     """ notnulled_shift should equal (positive) difference between readout blocks
