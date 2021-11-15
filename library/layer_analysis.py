@@ -577,7 +577,7 @@ def plot_cond_tcrs(condition_data_list,t=None,TR=1,labels=None,colors=None,ax=No
         ax.annotate(event[0],(event[1],y0),ha='center',va='bottom')
 
     # REMOVE ME LATER:
-    ax.axis([0,30,-0.4,1.2])
+    #ax.axis([0,30,-0.4,1.2])
     return ax
 
 
