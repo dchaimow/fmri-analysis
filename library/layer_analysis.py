@@ -113,23 +113,31 @@ def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
     return surf_trans_files
 
 
-def process_vaso(session_dir,process_script,alpharem_runs,gonogo_runs,analysis_subdir='analysis'):
-    analysis_dir = os.path.join(session_dir,analysis_subdir)
-    if not os.path.isdir(os.path.join(analysis_dir)):
+def process_vaso(session_dir,process_script,analysis_dir=None,alpharem_runs=None,gonogo_runs=None,analysis_subdir='analysis'):
+    if analysis_dir is None:
+        analysis_dir = os.path.join(session_dir,analysis_subdir)
+    if not os.path.isdir(analysis_dir):
         os.mkdir(analysis_dir)
-        with open(os.path.join(analysis_dir,'func_alpha-rem_task-runs.txt'),'w') as file:
-            print(*alpharem_runs,sep='\n',file=file)
-        with open(os.path.join(analysis_dir,'func_go-nogo_task-runs.txt'),'w') as file:
-            print(*gonogo_runs,sep='\n',file=file)
-        subprocess.run([process_script,session_dir,analysis_subdir])
+        if alpharem_runs is not None:
+            with open(os.path.join(analysis_dir,'func_alpha-rem_task-runs.txt'),'w') as file:
+                print(*alpharem_runs,sep='\n',file=file)
+        if gonogo_runs is not None:
+            with open(os.path.join(analysis_dir,'func_go-nogo_task-runs.txt'),'w') as file:
+                print(*gonogo_runs,sep='\n',file=file)
+        subprocess.run([process_script,session_dir,analysis_dir])
     return analysis_dir
 
 
-def register_fs_to_vasot1(fs_dir,analysis_dir, force=False):
+def register_fs_to_vasot1(fs_dir,analysis_dir, use_brain=False,force=False):
     if not os.path.isfile(os.path.join(analysis_dir,'fs_to_func_0GenericAffine.mat')) \
        or force==True:
+        if use_brain==True:
+            target = 'func_all_T1_brain.nii.gz'
+        else:
+            target = 'func_all_T1.nii'
+            
         subprocess.run(['register_fs-to-vasoT1.sh',
-                        'func_all_T1.nii',
+                        target,
                         fs_dir,
                         'itksnap'],cwd=analysis_dir)
 
