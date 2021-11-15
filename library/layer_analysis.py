@@ -650,7 +650,7 @@ def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None,force=
     if not os.path.isfile(out_file) or force==True:
         if notnulled_shift is not None:
             slicetimer_result = SliceTimer(in_file=notnulled_file,
-                                           global_shift=-notnulled_shift)
+                                           global_shift=-notnulled_shift).run()
             notnulled_file = slicetimer_result.outputs.out_file
 
         my_env=os.environ.copy()
