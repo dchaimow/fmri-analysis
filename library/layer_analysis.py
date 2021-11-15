@@ -91,7 +91,7 @@ def fs_surface_to_func(fs_to_func_reg,fs_dir,analysis_dir=None,force=False):
 
 
 def ciftify_surface_to_func(fs_to_func_reg,ciftify_dir,analysis_dir=None):
-    if analysis_dir == None:
+    if analysis_dir is None:
         analysis_dir = os.path.join(ciftify_dir,'T1w','fsaverage_LR32k')
     ciftify_subject = os.path.basename(os.path.normpath(ciftify_dir))
     transform_0_lin = fs_to_func_reg[1]
