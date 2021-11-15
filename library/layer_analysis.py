@@ -668,7 +668,11 @@ def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None,force=
     return out_file
                     
 def sample_timecourse(func_filename,roi):
-    masked_data=apply_mask(func_filename,roi)
+    # assume voxel matrix of data, roi correspond to each other
+    func_filename_reset = reset_affine(func_filename)
+    roi_reset = reset_affine(roi)
+
+    masked_data=apply_mask(func_filename_reset,roi_reset)
     return masked_data
 
 def calc_layers_laynii(rim_file,out_file_base=None,method='equidist',n_layers=3,force=False):
