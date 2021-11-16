@@ -1,16 +1,23 @@
-#from nipype.interfaces import spm
-from nipype.interfaces import fsl
+from nipype.interfaces import spm
 from nipype.interfaces import matlab
 from nipype.interfaces import cat12
 import nipype.pipeline.engine as pe
 import nibabel as nib
 import numpy as np
 import os
+import shutil
 
-spm_path = '/Users/denis/Software/spm12'
-matlab.MatlabCommand.set_default_matlab_cmd(
-    "/Applications/MATLAB_R2020b.app/bin/matlab -nodesktop -nosplash")
+spm_path = '/data/pt_02389/Software/spm12'
+matlab.MatlabCommand.set_default_paths(spm_path)
 
+def set_spm_path(new_spm_path):
+    global spm_path
+    spm_path = new_spm_path
+    matlab.MatlabCommand.set_default_paths(spm_path)
+
+def check_spm_path():
+    print(spm_path)
+    
 def load_niimg(niimg):
     if type(niimg) is str:
         return nib.load(niimg)
@@ -37,7 +44,7 @@ def multiply(niimg_in1, niimg_in2, out_file=None):
         nib.save(niimg_out,out_file)
     return niimg_out
 
-def mprageize(inv2_file, uni_file):
+def mprageize(inv2_file, uni_file, out_file=None):
     """ 
     Based on Sri Kashyap (https://github.com/srikash/presurfer/blob/main/func/presurf_MPRAGEise.m)
     """
@@ -65,14 +72,84 @@ def mprageize(inv2_file, uni_file):
                               
     # multiply normalized bias corrected INV2 with UNI
     uni_mprageized_niimg = multiply(norm_inv2_niimg,uni_file)
+
+    if out_file:
+        nib.save(uni_mprageized_niimg,out_file)
     return uni_mprageized_niimg
 
 def cat12_seg(in_file):
-    cat = cat12.CAT12Segment(in_files=in_file)
-    cat_results = cat.run()
-    return cat_results
+    # currently runs external MATLAB script, TODO: change to nipype interface
 
-def my_fs_recon_all(brainmask):
-    pass
+    module_file_path = os.path.abspath(__file__)
+    mfile_path = os.path.dirname(module_file_path)
+    
+    os.system(f"matlab" +
+              f" -nodisplay -nodesktop -r " +
+              f"\"addpath('{mfile_path}');" +
+              f"cat12_seg('{in_file}','{spm_path}'); exit;\"")
+              
+def mp2rage_recon_all(inv2_file,uni_file):
+
+    # mprageize
+    cwd = os.path.dirname(os.path.abspath(uni_file))
+
+    uni_mprageized_file = os.path.join(cwd,'UNI_mprageized.nii')
+    mprageize(inv2_file,uni_file,uni_mprageized_file)
+
+    # obtain brainmask using cat12
+    cat12_seg(uni_mprageized_file)
+
+    wm_nii = nib.load(os.path.join(cwd,'mri','p1UNI_mprageized.nii'))
+    gm_nii = nib.load(os.path.join(cwd,'mri','p2UNI_mprageized.nii'))
+    uni_mprageized_nii = nib.load(uni_mprageized_file)
+
+    wm_data = wm_nii.get_fdata()
+    gm_data = gm_nii.get_fdata()
+    uni_mprageized_data = uni_mprageized_nii.get_fdata()
+
+    uni_mprageized_brain_data = ((wm_data > 0) | (gm_data > 0)) * uni_mprageized_data
+    uni_mprageized_brain_nii = nib.Nifti1Image(uni_mprageized_brain_data,
+                                               uni_mprageized_nii.affine,
+                                               uni_mprageized_nii.header)
+    uni_mprageized_brain_file = os.path.join(cwd,'UNI_mprageized_brain.nii')
+    nib.save(uni_mprageized_brain_nii,uni_mprageized_brain_file)
+
+    # run recon-all
+    sub = "freesurfer"
+    # autorecon1 without skullstrip removal (~11 mins)
+    os.system("recon-all" + \
+          " -i " + uni_mprageized_brain_file + \
+          " -hires" + \
+          " -autorecon1" + \
+          " -noskullstrip" + \
+          " -sd " + cwd + \
+          " -s " + sub + \
+          " -parallel")
+
+    shutil.copy2(os.path.join(cwd,'freesurfer','mri','T1.mgz'),
+                 os.path.join(cwd,'freesurfer','mri','brainmask.mgz'))
+    shutil.copy2(os.path.join(cwd,'freesurfer','mri','T1.mgz'),
+                 os.path.join(cwd,'freesurfer','mri','brainmask.auto.mgz'))
+
+    with open(os.path.join(cwd,'expert.opts'), 'w') as text_file:
+        text_file.write('mris_inflate -n 100\n')
+    # autorecon2 and 3
+    os.system("recon-all" + \
+              " -hires" + \
+              " -autorecon2" + " -autorecon3"\
+              " -sd " + cwd + \
+              " -s " + sub + \
+              " -expert " + os.path.join(cwd,'expert.opts') + \
+              " -xopts-overwrite" + \
+              " -parallel")
+    
+    
+    
+
+    
+    
+    
+    
+    
 
 
