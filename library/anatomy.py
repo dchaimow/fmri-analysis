@@ -1,6 +1,7 @@
 from nipype.interfaces import spm
 from nipype.interfaces import matlab
 from nipype.interfaces import cat12
+from nipype.interfaces.freesurfer import ApplyVolTransform, ApplyMask
 import nipype.pipeline.engine as pe
 import nibabel as nib
 import numpy as np
@@ -107,7 +108,14 @@ def mp2rage_recon_all(inv2_file,uni_file):
     gm_data = gm_nii.get_fdata()
     uni_mprageized_data = uni_mprageized_nii.get_fdata()
 
-    uni_mprageized_brain_data = ((wm_data > 0) | (gm_data > 0)) * uni_mprageized_data
+    brainmask_data = np.array(((wm_data > 0) | (gm_data > 0)),dtype=int)
+    brainmask_nii = nib.Nifti1Image(brainmask_data,
+                                    uni_mprageized_nii.affine,
+                                    uni_mprageized_nii.header)
+    brainmask_file = os.path.join(cwd,'brainmask.nii')
+    nib.save(brainmask_nii,brainmask_file)
+    
+    uni_mprageized_brain_data = brainmask_data * uni_mprageized_data
     uni_mprageized_brain_nii = nib.Nifti1Image(uni_mprageized_brain_data,
                                                uni_mprageized_nii.affine,
                                                uni_mprageized_nii.header)
@@ -118,7 +126,7 @@ def mp2rage_recon_all(inv2_file,uni_file):
     sub = "freesurfer"
     # autorecon1 without skullstrip removal (~11 mins)
     os.system("recon-all" + \
-          " -i " + uni_mprageized_brain_file + \
+          " -i " + uni_mprageized_file + \
           " -hires" + \
           " -autorecon1" + \
           " -noskullstrip" + \
@@ -126,11 +134,26 @@ def mp2rage_recon_all(inv2_file,uni_file):
           " -s " + sub + \
           " -parallel")
 
-    shutil.copy2(os.path.join(cwd,'freesurfer','mri','T1.mgz'),
-                 os.path.join(cwd,'freesurfer','mri','brainmask.mgz'))
-    shutil.copy2(os.path.join(cwd,'freesurfer','mri','T1.mgz'),
+    # apply brain mask from CAT12
+    transmask = ApplyVolTransform()
+    transmask.inputs.source_file = brainmask_file
+    transmask.inputs.target_file = os.path.join(cwd, 'freesurfer', "mri", "orig.mgz")
+    transmask.inputs.reg_header = True
+    transmask.inputs.interp = "nearest"
+    transmask.inputs.transformed_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
+    transmask.inputs.args = "--no-save-reg"
+    transmask.run()
+
+    applymask = ApplyMask()
+    applymask.inputs.in_file = os.path.join(cwd,'freesurfer','mri','T1.mgz')
+    applymask.inputs.mask_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
+    applymask.inputs.out_file =  os.path.join(cwd,'freesurfer','mri','brainmask.mgz')
+    applymask.run()
+    
+    shutil.copy2(os.path.join(cwd,'freesurfer','mri','brainmask.mgz'),
                  os.path.join(cwd,'freesurfer','mri','brainmask.auto.mgz'))
 
+    # continue recon-all
     with open(os.path.join(cwd,'expert.opts'), 'w') as text_file:
         text_file.write('mris_inflate -n 100\n')
     # autorecon2 and 3
@@ -142,14 +165,3 @@ def mp2rage_recon_all(inv2_file,uni_file):
               " -expert " + os.path.join(cwd,'expert.opts') + \
               " -xopts-overwrite" + \
               " -parallel")
-    
-    
-    
-
-    
-    
-    
-    
-    
-
-
