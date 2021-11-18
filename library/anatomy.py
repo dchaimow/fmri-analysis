@@ -66,7 +66,7 @@ def mprageize(inv2_file, uni_file, out_file=None):
     seg.inputs.sampling_distance = 3
     seg.inputs.warping_regularization = [0, 0.001, 0.5, 0.05, 0.02]
     seg.inputs.write_deformation_fields = [False, False]
-    seg_results = seg.run()
+    seg_results = seg.run(cwd=os.path.dirname(os.path.abspath(inv2_file)))
     
     # normalize bias corrected INV2
     norm_inv2_niimg = normalize(seg_results.outputs.bias_corrected_images)
@@ -88,20 +88,35 @@ def cat12_seg(in_file):
               f" -nodisplay -nodesktop -r " +
               f"\"addpath('{mfile_path}');" +
               f"cat12_seg('{in_file}','{spm_path}'); exit;\"")
+
+    cwd = os.path.dirname(os.path.abspath(in_file))
+    in_file_basename = os.path.basename(os.path.abspath(in_file))
+    if os.path.isfile(os.path.join(cwd,'mri','p1' + in_file_basename)):
+        return os.path.join(cwd,'mri','p1' + in_file_basename), os.path.join(cwd,'mri','p2' + in_file_basename)
+    else:
+        return os.path.join(cwd,'p1' + in_file_basename), os.path.join(cwd,'p2' + in_file_basename)
               
 def mp2rage_recon_all(inv2_file,uni_file):
 
     # mprageize
     cwd = os.path.dirname(os.path.abspath(uni_file))
-
-    uni_mprageized_file = os.path.join(cwd,'UNI_mprageized.nii')
+    uni_basename = os.path.basename(os.path.abspath(uni_file))
+    
+    uni_mprageized_file = os.path.join(cwd,uni_basename.replace('UNIT1','T1w'))
+    uni_mprageized_brain_file =  os.path.join(cwd,uni_basename.replace('UNIT1','T1w_brain'))
+    brainmask_file =  os.path.join(cwd,uni_basename.replace('UNIT1','brainmask'))
+    if os.path.basename(uni_mprageized_file)==uni_basename:
+        uni_mprageized_file = os.path.join(cwd,'T1w.nii')
+        uni_mprageized_brain_file = os.path.join(cwd,'T1w_brain.nii')
+        brainmask_file =  os.path.join(cwd,'brainmask.nii')
+    
     mprageize(inv2_file,uni_file,uni_mprageized_file)
 
     # obtain brainmask using cat12
-    cat12_seg(uni_mprageized_file)
+    wm_file, gm_file = cat12_seg(uni_mprageized_file)
 
-    wm_nii = nib.load(os.path.join(cwd,'mri','p1UNI_mprageized.nii'))
-    gm_nii = nib.load(os.path.join(cwd,'mri','p2UNI_mprageized.nii'))
+    wm_nii = nib.load(wm_file)
+    gm_nii = nib.load(gm_file)
     uni_mprageized_nii = nib.load(uni_mprageized_file)
 
     wm_data = wm_nii.get_fdata()
@@ -112,14 +127,12 @@ def mp2rage_recon_all(inv2_file,uni_file):
     brainmask_nii = nib.Nifti1Image(brainmask_data,
                                     uni_mprageized_nii.affine,
                                     uni_mprageized_nii.header)
-    brainmask_file = os.path.join(cwd,'brainmask.nii')
     nib.save(brainmask_nii,brainmask_file)
     
     uni_mprageized_brain_data = brainmask_data * uni_mprageized_data
     uni_mprageized_brain_nii = nib.Nifti1Image(uni_mprageized_brain_data,
                                                uni_mprageized_nii.affine,
                                                uni_mprageized_nii.header)
-    uni_mprageized_brain_file = os.path.join(cwd,'UNI_mprageized_brain.nii')
     nib.save(uni_mprageized_brain_nii,uni_mprageized_brain_file)
 
     # run recon-all
@@ -142,13 +155,13 @@ def mp2rage_recon_all(inv2_file,uni_file):
     transmask.inputs.interp = "nearest"
     transmask.inputs.transformed_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
     transmask.inputs.args = "--no-save-reg"
-    transmask.run()
+    transmask.run(cwd=cwd)
 
     applymask = ApplyMask()
     applymask.inputs.in_file = os.path.join(cwd,'freesurfer','mri','T1.mgz')
     applymask.inputs.mask_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
     applymask.inputs.out_file =  os.path.join(cwd,'freesurfer','mri','brainmask.mgz')
-    applymask.run()
+    applymask.run(cwd=cwd)
     
     shutil.copy2(os.path.join(cwd,'freesurfer','mri','brainmask.mgz'),
                  os.path.join(cwd,'freesurfer','mri','brainmask.auto.mgz'))
