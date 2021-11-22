@@ -96,7 +96,7 @@ def cat12_seg(in_file):
     else:
         return os.path.join(cwd,'p1' + in_file_basename), os.path.join(cwd,'p2' + in_file_basename)
               
-def mp2rage_recon_all(inv2_file,uni_file):
+def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None):
 
     # mprageize
     cwd = os.path.dirname(os.path.abspath(uni_file))
@@ -136,35 +136,41 @@ def mp2rage_recon_all(inv2_file,uni_file):
     nib.save(uni_mprageized_brain_nii,uni_mprageized_brain_file)
 
     # run recon-all
-    sub = "freesurfer"
+    if output_fs_dir:
+         fs_dir = os.path.dirname(os.path.abspath(in_file))
+         sub = os.path.basename(os.path.abspath(in_file))
+    else:
+         fs_dir = cwd
+         sub = 'freesurfer'
+        
     # autorecon1 without skullstrip removal (~11 mins)
     os.system("recon-all" + \
           " -i " + uni_mprageized_file + \
           " -hires" + \
           " -autorecon1" + \
           " -noskullstrip" + \
-          " -sd " + cwd + \
+          " -sd " + fs_dir + \
           " -s " + sub + \
           " -parallel")
 
     # apply brain mask from CAT12
     transmask = ApplyVolTransform()
     transmask.inputs.source_file = brainmask_file
-    transmask.inputs.target_file = os.path.join(cwd, 'freesurfer', "mri", "orig.mgz")
+    transmask.inputs.target_file = os.path.join(fs_dir, sub, 'mri', 'orig.mgz')
     transmask.inputs.reg_header = True
     transmask.inputs.interp = "nearest"
-    transmask.inputs.transformed_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
+    transmask.inputs.transformed_file = os.path.join(fs_dir, sub, 'mri', 'brainmask_mask.mgz')
     transmask.inputs.args = "--no-save-reg"
     transmask.run(cwd=cwd)
 
     applymask = ApplyMask()
-    applymask.inputs.in_file = os.path.join(cwd,'freesurfer','mri','T1.mgz')
-    applymask.inputs.mask_file = os.path.join(cwd,'freesurfer', "mri", "brainmask_mask.mgz")
-    applymask.inputs.out_file =  os.path.join(cwd,'freesurfer','mri','brainmask.mgz')
+    applymask.inputs.in_file = os.path.join(fs_dir, sub,'mri','T1.mgz')
+    applymask.inputs.mask_file = os.path.join(fs_dir, sub, 'mri', 'brainmask_mask.mgz')
+    applymask.inputs.out_file =  os.path.join(fs_dir, sub, 'mri', 'brainmask.mgz')
     applymask.run(cwd=cwd)
-    
-    shutil.copy2(os.path.join(cwd,'freesurfer','mri','brainmask.mgz'),
-                 os.path.join(cwd,'freesurfer','mri','brainmask.auto.mgz'))
+
+    shutil.copy2(os.path.join(fs_dir, sub, 'mri', 'brainmask.mgz'),
+                 os.path.join(fs_dir, sub, 'mri','brainmask.auto.mgz'))
 
     # continue recon-all
     with open(os.path.join(cwd,'expert.opts'), 'w') as text_file:
@@ -173,7 +179,7 @@ def mp2rage_recon_all(inv2_file,uni_file):
     os.system("recon-all" + \
               " -hires" + \
               " -autorecon2" + " -autorecon3"\
-              " -sd " + cwd + \
+              " -sd " + fs_dir + \
               " -s " + sub + \
               " -expert " + os.path.join(cwd,'expert.opts') + \
               " -xopts-overwrite" + \
