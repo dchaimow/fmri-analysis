@@ -12,7 +12,7 @@ NumVol=$(3dinfo -nv ${fBaseName}_nulled.nii)
 3dTcat -prefix ${fBaseName}_combined.nii  \
        ${fBaseName}_nulled.nii'[3..'`expr $NumVol - 2`']' \
        ${fBaseName}_notnulled.nii'[3..'`expr $NumVol - 2`']'
-3dTstat -cvarinv -prefix ${fBaseName}_T1.nii \
+3dTstat -cvarinvNOD -prefix ${fBaseName}_T1.nii \
         -overwrite ${fBaseName}_combined.nii 
 rm ${fBaseName}_combined.nii
 
