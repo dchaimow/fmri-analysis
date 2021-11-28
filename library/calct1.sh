@@ -12,11 +12,19 @@ NumVol=$(3dinfo -nv ${fBaseName}_nulled.nii)
 3dTcat -prefix ${fBaseName}_combined.nii  \
        ${fBaseName}_nulled.nii'[3..'`expr $NumVol - 2`']' \
        ${fBaseName}_notnulled.nii'[3..'`expr $NumVol - 2`']'
-3dTstat -cvarinvNOD -prefix ${fBaseName}_T1.nii \
+3dTstat -cvarinvNOD -prefix ${fBaseName}_T1_raw.nii \
         -overwrite ${fBaseName}_combined.nii 
 rm ${fBaseName}_combined.nii
 
-# calculate mask from notnulled
-3dAutomask -dilate 1 -prefix ${fBaseName}_mask.nii ${fBaseName}_notnulled.nii
-# applt mask to T1
-fslmaths ${fBaseName}_T1.nii -mas  ${fBaseName}_mask.nii  ${fBaseName}_T1_brain.nii
+3dTstat -mean -prefix ${fBaseName}_mean_notnulled.nii ${fBaseName}_notnulled.nii -overwrite
+3dTstat -mean -prefix ${fBaseName}_mean_nulled.nii ${fBaseName}_notnulled.nii -overwrite
+
+3drefit -space ORIG -view orig ${fBaseName}_mean_notnulled.nii
+3drefit -space ORIG -view orig ${fBaseName}_mean_nulled.nii
+
+LN_MP2RAGE_DNOISE -INV1 ${fBaseName}_mean_nulled.nii -INV2 ${fBaseName}_mean_nulled.nii \
+                  -UNI ${fBaseName}_T1_raw.nii -beta 5 -output func_T1_denoised.nii
+
+N4BiasFieldCorrection -i ${fBaseName}_T1_denoised.nii -o ${fBaseName}_T1.nii
+rm ${fBaseName}_T1_raw.nii
+rm ${fBaseName}_T1_denoised.nii
