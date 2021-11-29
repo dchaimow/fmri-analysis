@@ -132,7 +132,7 @@ def register_fs_to_vasot1(fs_dir,analysis_dir, use_brain=False,force=False):
     if not os.path.isfile(os.path.join(analysis_dir,'fs_to_func_0GenericAffine.mat')) \
        or force==True:
         if use_brain==True:
-            target = 'func_all_T1_brain.nii.gz'
+            target = 'func_all_T1_brain.nii'
         else:
             target = 'func_all_T1.nii'
             
@@ -526,10 +526,10 @@ def calc_percent_change_trialavg(trialavg_files,baseline_file,inv_change=False,f
 
 def plot_roi_tcrs(file_list,roi,xlabel='volume',ylabel='signal',run_type=None):
     if run_type is not None:
-        if run_type=='alpha-rem':
+        if run_type=='alpharem':
             labels=['rem','alpha']
             colors=['tab:green','tab:blue']
-        elif run_type=='go-nogo':
+        elif run_type=='gonogo':
             labels=['nogo','go']
             colors=['tab:orange','tab:red']
         else:
@@ -822,10 +822,10 @@ def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0,TR=3.702):
         elif layers=='superficial':
             condition_data.append(np.mean(sampled_data[:,sampled_depths>(0.5-d)],axis=1))
             
-    if run_type=='alpha-rem':
+    if run_type=='alpharem':
         labels=['rem','alpha']
         colors=['tab:green','tab:blue']
-    elif run_type=='go-nogo':
+    elif run_type=='gonogo':
         labels=['nogo','go']
         colors=['tab:orange','tab:red']
         
@@ -842,19 +842,19 @@ def plot_finn_tcrses(depths,roi,trialavg_alpharem,trialavg_gonogo,d=0,TR=3.702):
         
     fig=plt.figure(figsize=(10,8), dpi= 100, facecolor='w', edgecolor='k')
     ax = plt.subplot(2,2,1)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','superficial',ax,d,TR=TR)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpharem','superficial',ax,d,TR=TR)
     ax.axis([0,30,-0.5, 1.5])
                     
     ax = plt.subplot(2,2,2)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','superficial',ax,d,TR=TR)
+    plot_finn_panel(depths,roi,trialavg_gonogo,'gonogo','superficial',ax,d,TR=TR)
     ax.axis([0,30,-0.5, 1.5])
     
     ax = plt.subplot(2,2,3)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpha-rem','deep',ax,d,TR=TR)
+    plot_finn_panel(depths,roi,trialavg_alpharem,'alpharem','deep',ax,d,TR=TR)
     ax.axis([0,30,-0.5, 1.5])
     
     ax = plt.subplot(2,2,4)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'go-nogo','deep',ax,d,TR=TR)
+    plot_finn_panel(depths,roi,trialavg_gonogo,'gonogo','deep',ax,d,TR=TR)
     ax.axis([0,30,-0.5, 1.5])
 def get_finn_tcrs_data(trial_averages,roi,):
     data = dict()
@@ -913,8 +913,8 @@ def finn_trial_averaging(run_type,analysis_dir,force=False):
     trial_order = paradigm(run_type)
     trialavg = dict()
     onset_delay = 8
-    in_files_bold = [os.path.join(analysis_dir,f'func_{run_type}_notnulled_tshift.nii.gz')]
-    in_files_vaso = [os.path.join(analysis_dir,f'func_{run_type}_vaso.nii.gz')]
+    in_files_bold = [os.path.join(analysis_dir,f'func_{run_type}_notnulled_tshift.nii')]
+    in_files_vaso = [os.path.join(analysis_dir,f'func_{run_type}_vaso.nii')]
     stim_times_runs = [calc_stim_times(onset_delay=8,trial_duration=trial_duration,
                                        trial_order=trial_order)]
     trialavg_files_bold, baseline_file_bold, fstat_file_bold = \
@@ -1007,7 +1007,7 @@ def paradigm(run_type):
         startBlankPeriod = 6
         
         trial_order=[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
-    elif run_type in ['alpha-rem','go-nogo']:
+    elif run_type in ['alpharem','gonogo']:
         letterStringDuration = 2.5
         fix1Duration         = 1.5
         cueDuration          = 1
@@ -1017,9 +1017,9 @@ def paradigm(run_type):
 
         startBlankPeriod = 8
         
-        if run_type=='alpha-rem':
+        if run_type=='alpharem':
             trial_order=[2,3,3,3,2,2,3,2,3,3,2,2,2,3,2,3,3,3,2,2]
-        elif run_type=='go-nogo':
+        elif run_type=='gonogo':
             trial_order=[4,5,5,5,4,4,5,4,5,5,4,4,4,5,4,5,5,5,4,4]
     
     return trial_order

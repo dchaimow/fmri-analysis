@@ -26,5 +26,14 @@ LN_MP2RAGE_DNOISE -INV1 ${fBaseName}_mean_nulled.nii -INV2 ${fBaseName}_mean_nul
                   -UNI ${fBaseName}_T1_raw.nii -beta 5 -output ${fBaseName}_T1_denoised.nii
 
 N4BiasFieldCorrection -i ${fBaseName}_T1_denoised.nii -o ${fBaseName}_T1.nii
+
+# calculate mask from notnulled
+export FSLOUTPUTTYPE=NIFTI
+3dAutomask -dilate 1 -prefix ${fBaseName}_mask.nii ${fBaseName}_notnulled.nii -overwrite
+# apply mask to T1
+fslmaths ${fBaseName}_T1.nii -mas  ${fBaseName}_mask.nii  ${fBaseName}_T1_brain.nii
+
 rm ${fBaseName}_T1_raw.nii
 rm ${fBaseName}_T1_denoised.nii
+rm ${fBaseName}_T1_denoised_border_enhance.nii
+rm ${fBaseName}_mask.nii
