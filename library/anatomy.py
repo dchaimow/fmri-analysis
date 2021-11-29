@@ -49,7 +49,6 @@ def mprageize(inv2_file, uni_file, out_file=None):
     """ 
     Based on Sri Kashyap (https://github.com/srikash/presurfer/blob/main/func/presurf_MPRAGEise.m)
     """
-    #mprageize_wf = pe.Workflow(name='mprageize')
     
     # bias correct INV2
     seg = spm.NewSegment()
@@ -137,8 +136,8 @@ def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None):
 
     # run recon-all
     if output_fs_dir:
-         fs_dir = os.path.dirname(os.path.abspath(in_file))
-         sub = os.path.basename(os.path.abspath(in_file))
+         fs_dir = os.path.dirname(os.path.abspath(output_fs_dir))
+         sub = os.path.basename(os.path.abspath(output_fs_dir))
     else:
          fs_dir = cwd
          sub = 'freesurfer'

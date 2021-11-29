@@ -1041,7 +1041,7 @@ def preprocess_funcloc(data):
 def feat_analysis(feat_template,func_file,output_dir,stim_timings_dir,smoothing_fwhm=0):
     cwd = os.path.dirname(os.path.normpath(output_dir))
     feat_template_base = os.path.basename(os.path.normpath(feat_template))
-    print(cwd)
+
     # copy
     subprocess.run(['cp',feat_template,'.'],cwd=cwd)
     # edit
