@@ -23,7 +23,7 @@ rm ${fBaseName}_combined.nii
 3drefit -space ORIG -view orig ${fBaseName}_mean_nulled.nii
 
 LN_MP2RAGE_DNOISE -INV1 ${fBaseName}_mean_nulled.nii -INV2 ${fBaseName}_mean_nulled.nii \
-                  -UNI ${fBaseName}_T1_raw.nii -beta 5 -output func_T1_denoised.nii
+                  -UNI ${fBaseName}_T1_raw.nii -beta 5 -output ${fBaseName}_T1_denoised.nii
 
 N4BiasFieldCorrection -i ${fBaseName}_T1_denoised.nii -o ${fBaseName}_T1.nii
 rm ${fBaseName}_T1_raw.nii
