@@ -30,11 +30,11 @@ def plot_stat_map(stat_map_img,bg_img,threshold=1e-06):
     bg_img = img_to_voxel_space(bg_img)
     nl_plotting.plot_stat_map(stat_map_img=stat_map_img,bg_img=bg_img,display_mode='z',threshold=threshold)
 
-def plot_roi(roi_img,bg_img,display_mode='z',cut_coords=None,cmap=None):
+def plot_roi(roi_img,bg_img,display_mode='z',cut_coords=None,cmap=None,dim=0):
     roi_img = img_to_voxel_space(roi_img)
     bg_img = img_to_voxel_space(bg_img)
     nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode=display_mode,
-                         cmap=cmap,cut_coords=cut_coords)
+                         cmap=cmap,cut_coords=cut_coords,dim=dim)
 #   nl_plotting.plot_roi(roi_img=roi_img,bg_img=bg_img,display_mode='z',colorbar=True,cmap='Paired')
 
 def plot_labels(roi_img,bg_img,display_mode='z',cut_coords=None,cmap=None):
