@@ -205,7 +205,8 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
                     volume_out,
                     '-ribbon-constrained',
                     white_surf,
-                    pial_surf])
+                    pial_surf,
+                    '-greedy'])
     return volume_out
 
 
