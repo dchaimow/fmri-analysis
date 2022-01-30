@@ -271,8 +271,8 @@ def process_dc_voxeldepth_from_surfaces(surf_white_lh_file,area_white_lh_file,
                                                            method,n_jobs)
 
         xform = grid_to_scanner
-        nii_depths = nib.nifti2.Nifti2Image(depths, xform)
-        nii_columns = nib.nifti2.Nifti2Image(columns, xform)
+        nii_depths = nib.nifti1.Nifti1Image(depths, xform)
+        nii_columns = nib.nifti1.Nifti1Image(columns, xform)
 
         nib.save(nii_depths,depths_fname)
         nib.save(nii_columns,columns_fname)
