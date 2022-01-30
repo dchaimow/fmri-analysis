@@ -1,23 +1,36 @@
-# prelimninary code potentially to be used for cat12 segmentation interface (currently not functional)
-function cat12_seg(filename,spm_path)
-    try
-        if exist('spm_path','var')
-            addpath(spm_path);
-        else
-            % get SPM12 root directory from matlab search path
-            spm_path = what('spm12').path;
-        end
-        
-        % set spm default parameters
-        spm('defaults','FMRI');
-        spm_get_defaults('stats.maxmem',2^35); % maxmen indicates how much memory can be used
-        spm_get_defaults('cmdline',true); % no gui
-        
-        matlabbatch{1}.spm.tools.cat.estwrite.data = {[filename ',1']};
+from nipype.interfaces.base import traits
+from nipype.interfaces.base import TraitedSpec, InputMultiPath
+from nipype.interfaces.matlab import MatlabCommand, MatlabInputSpec
+from nipype.interfaces.spm.base import ImageFileSPM
+
+class cat12_seg_InputSpec(MatlabInputSpec):
+    in_file = InputMultiPath(
+        ImageFileSPM(exists=True),
+        field="data",
+        desc="file to segment",
+        mandatory=True,
+        copyfile=False,
+    )
+
+class cat12_seg_OutputSpec(TraitedSpec):
+    matlab_output = traits.Str()
+
+
+class cat12_seg(MatlabCommand):
+    """
+    CAT 12 Interface for GM and WM segmentation of 7T MPRAGE data using fixed parameters
+    """
+    
+    input_spec = cat12_seg_InputSpec
+    output_spec = cat12_seg_OutputSpec
+
+    def _my_script(self):
+        script = """
+        matlabbatch{1}.spm.tools.cat.estwrite.data = {'%s,1'};
         matlabbatch{1}.spm.tools.cat.estwrite.data_wmh = {''};
         matlabbatch{1}.spm.tools.cat.estwrite.nproc = 1;
         matlabbatch{1}.spm.tools.cat.estwrite.useprior = '';
-        matlabbatch{1}.spm.tools.cat.estwrite.opts.tpm = {fullfile(spm_path,'tpm/TPM.nii')};
+        matlabbatch{1}.spm.tools.cat.estwrite.opts.tpm = {'%s/tpm/TPM.nii'};
         matlabbatch{1}.spm.tools.cat.estwrite.opts.affreg = 'mni';
         matlabbatch{1}.spm.tools.cat.estwrite.opts.biasacc = 0.5;
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.restypes.native = [];
@@ -29,8 +42,7 @@ function cat12_seg(filename,spm_path)
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.LASmyostr = 0;
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.gcutstr = 2;
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.WMHC = 2;
-        matlabbatch{1}.spm.tools.cat.estwrite.extopts.registration.shooting.shootingtpm = ...
-            {fullfile(spm_path,'/toolbox/cat12/templates_MNI152NLin2009cAsym/Template_0_GS.nii')};
+        matlabbatch{1}.spm.tools.cat.estwrite.extopts.registration.shooting.shootingtpm = {'%s/toolbox/cat12/templates_MNI152NLin2009cAsym/Template_0_GS.nii'};
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.registration.shooting.regstr = 0.5;
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.vox = 1.5;
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.bb = 12;
@@ -38,7 +50,7 @@ function cat12_seg(filename,spm_path)
         matlabbatch{1}.spm.tools.cat.estwrite.extopts.ignoreErrors = 1;
         matlabbatch{1}.spm.tools.cat.estwrite.output.BIDS.BIDSno = 1;
         matlabbatch{1}.spm.tools.cat.estwrite.output.surface = 0;
-        matlabbatch{1}.spm.tools.cat.estwrite.output.surf_measures = 0;
+        matlabbatch{1}.spm.tools.cat.estwrite.output.surf_measures = 1;
         matlabbatch{1}.spm.tools.cat.estwrite.output.ROImenu.atlases.neuromorphometrics = 0;
         matlabbatch{1}.spm.tools.cat.estwrite.output.ROImenu.atlases.lpba40 = 0;
         matlabbatch{1}.spm.tools.cat.estwrite.output.ROImenu.atlases.cobra = 0;
@@ -86,14 +98,18 @@ function cat12_seg(filename,spm_path)
         matlabbatch{1}.spm.tools.cat.estwrite.output.jacobianwarped = 0;
         matlabbatch{1}.spm.tools.cat.estwrite.output.warps = [0 0];
         matlabbatch{1}.spm.tools.cat.estwrite.output.rmat = 0;
-        
-        % run
-        spm_jobman('run', matlabbatch);
-    catch ME
-        fprintf(2,'MATLAB code threw an exception:\n');
-        fprintf(2,'%s\n',ME.message);
-        if length(ME.stack) ~= 0
-            fprintf(2,'File:%s\nName:%s\nLine:%d\n',ME.stack.file,ME.stack.name,ME.stack.line);
-        end
-    end
-end
+        """ % (self.inputs.name, self.inputs.spm_path, self.inputs.spm_path)
+        return script
+
+    def run(self, **inputs):
+        # Inject your script
+        self.inputs.script = self._my_script()
+        results = super(MatlabCommand, self).run(**inputs)
+        stdout = results.runtime.stdout
+        # Attach stdout to outputs to access matlab results
+        results.outputs.matlab_output = stdout
+        return results
+
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        return outputs

@@ -63,7 +63,7 @@ def mprageize(inv2_file, uni_file, out_file=None):
     seg.inputs.tissues = [tissue1, tissue2, tissue3, tissue4, tissue5, tissue6]    
     seg.inputs.affine_regularization = 'mni'
     seg.inputs.sampling_distance = 3
-    seg.inputs.warping_regularization = [0, 0.001, 0.5, 0.05, 0.02]
+    seg.inputs.warping_regularization = [0, 0.001, 0.5, 0.05, 0.2]
     seg.inputs.write_deformation_fields = [False, False]
     seg_results = seg.run(cwd=os.path.dirname(os.path.abspath(inv2_file)))
     
