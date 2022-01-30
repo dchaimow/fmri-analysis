@@ -1,24 +1,20 @@
-import subprocess
+import copy
 import os
-import numpy as np
-import nibabel as nib
-from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Refit, Calc, TStat
-from nipype.interfaces.freesurfer import MRIConvert, MRIsConvert
-from nipype.interfaces.fsl import SliceTimer
+import subprocess
+import tempfile
+from collections import defaultdict
+from itertools import zip_longest
+from shutil import rmtree, copy2
+
+import pandas as pd
+from nilearn._utils import check_niimg
 from nilearn.image import math_img
 from nilearn.masking import apply_mask, intersect_masks
-from collections import defaultdict
-import nipype.interfaces.fsl as fsl
-import nipype.pipeline.engine as pe
-from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
+from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Calc, TStat
 from nipype.interfaces.ants import ApplyTransformsToPoints
-import pandas as pd
-import seaborn as sns
-from nilearn._utils import check_niimg
-import copy
-from itertools import zip_longest
-import matplotlib.pyplot as plt
-from shutil import move
+from nipype.interfaces.freesurfer import MRIsConvert
+from nipype.interfaces.fsl import SliceTimer
+from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
 
 
 def fsl_remove_ext(filename):
@@ -230,38 +226,43 @@ def get_fs_LR_atlas_roi(parcel=None, atlas_labels=None, out_basename=None, analy
     return roi
 
 
-def fs_annot_to_fs_volume(fs_dir,analysis_dir,annot_file,hemi,out_basename,force=False):
-    if out_basename==None:
-        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '.nii'
+def fs_overlay_to_fs_volume(overlay_file, fs_dir, analysis_dir, hemi, out_basename=None, force=False):
+    # assumes overlay belongs to {hemi}.white
+    if out_basename == None:
+        out_file = os.path.splitext(os.path.normpath(overlay_file))[0] + '.nii'
     else:
-        out_file=os.path.join(analysis_dir,out_basename+'_labels_'+hemi+'.nii')
-    
-    subject=os.path.basename(os.path.normpath(fs_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+        out_file = os.path.join(analysis_dir, out_basename + '_labels_' + hemi + '.nii')
+
+    subject = os.path.basename(os.path.abspath(fs_dir))
+    subjects_dir = os.path.dirname(os.path.abspath(fs_dir))
     my_env = os.environ.copy()
     my_env['SUBJECTS_DIR'] = subjects_dir
-    
-    if not os.path.isfile(out_file) or force==True:
-        if subprocess.run(['mri_label2vol',
-                           '--annot',annot_file,
-                           '--o',out_file,
-                           '--subject',subject,
-                           '--hemi',hemi,
-                           '--identity',
-                           '--temp',os.path.join(subjects_dir,subject,'mri','ribbon.mgz'),
-                           '--proj','frac','0','1','0.05'],
-                          env=my_env).returncode !=0:
+
+    if not os.path.isfile(out_file) or force == True:
+        if subprocess.run(['mri_surf2vol',
+                           '--so', os.path.join(fs_dir, 'surf', hemi + '.white'), overlay_file,
+                           '--subject', subject,
+                           '--o', out_file,
+                           '--ribbon', os.path.join(fs_dir, 'mri', 'ribbon.mgz')],
+                          env=my_env).returncode != 0:
             return None
+        # remove -1 values
+        out_file_nii = nib.load(out_file)
+        out_file_data = out_file_nii.get_fdata()
+        out_file_data[out_file_data == -1] = 0
+        out_file_changed_nii = nib.Nifti1Image(out_file_data, out_file_nii.affine, out_file_nii.header)
+        nib.save(out_file_changed_nii, out_file)
     return out_file
 
 
-def get_fs_annot_roi(parcel=None,annot_files=None,out_basename=None,analysis_dir=None,
-                     fs_dir=None,fs_to_func_reg=None,force=False):
+def get_fs_roi(parcel=None, overlay_files=None, out_basename=None, analysis_dir=None,
+               fs_dir=None, fs_to_func_reg=None, force=False):
     hemi = parcel[0]
     parcel_idx = parcel[1]
-    labels_in_func = os.path.join(analysis_dir,out_basename+'_labels_'+hemi+'_in-func.nii')
-    if not os.path.isfile(labels_in_func) or force==True:
-        labels_in_fs_individual = fs_annot_to_fs_volume(fs_dir,analysis_dir,annot_files[hemi],hemi,out_basename,force)
+    labels_in_func = os.path.join(analysis_dir, out_basename + '_labels_' + hemi + '_in-func.nii')
+    if not os.path.isfile(labels_in_func) or force == True:
+        labels_in_fs_individual = fs_overlay_to_fs_volume(overlay_files[hemi], fs_dir, analysis_dir,
+                                                          hemi, out_basename, force)
         apply_ants_transforms(vol_in=labels_in_fs_individual,
                               vol_out=labels_in_func,
                               ref_vol=fs_to_func_reg[0],
@@ -308,18 +309,19 @@ def sample_surf_feat_stat(feat_dir, stat_file, fs_dir, hemi, force=False):
             return None
     return out_file
 
-def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0,force=False):
-    if out_file==None:
-        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '_smooth.mgh'
-    subject=os.path.basename(os.path.normpath(fs_dir))
-    subjects_dir=os.path.dirname(os.path.normpath(fs_dir))
+
+def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0, force=False):
+    if out_file == None:
+        out_file = os.path.splitext(os.path.normpath(in_file))[0] + '_smooth.mgh'
+    subject = os.path.basename(os.path.abspath(fs_dir))
+    subjects_dir = os.path.dirname(os.path.abspath(fs_dir))
     my_env = os.environ.copy()
     my_env['SUBJECTS_DIR'] = subjects_dir
     if not os.path.isfile(out_file) or force == True:
         if subprocess.run(['mri_surf2surf',
-                           '--hemi',hemi,
-                           '--s','freesurfer',
-                           '--fwhm',str(fwhm),
+                           '--hemi', hemi,
+                           '--s', subject,
+                           '--fwhm', str(fwhm),
                            '--cortex',
                            '--sval', in_file,
                            '--tval', out_file],
@@ -328,9 +330,10 @@ def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0,force=Fal
     return out_file
 
 
-def cluster_surf(in_file,out_file=None,threshold=3,fs_dir=None,hemi=None,force=False):
-    if out_file==None:
-        out_file=os.path.splitext(os.path.normpath(in_file))[0] + '_clusters.annot'
+def cluster_surf(in_file, out_file=None, fs_dir=None, hemi=None, threshold=10, force=False):
+    if out_file == None:
+        out_file = os.path.splitext(os.path.normpath(in_file))[0] + '_clusters.mgh'
+    annot_file = os.path.splitext(os.path.normpath(out_file))[0] + '.annot'
 
     subject = os.path.basename(os.path.normpath(fs_dir))
     subjects_dir = os.path.dirname(os.path.normpath(fs_dir))
@@ -344,14 +347,106 @@ def cluster_surf(in_file,out_file=None,threshold=3,fs_dir=None,hemi=None,force=F
                            '--sign', 'pos',
                            '--hemi', hemi,
                            '--subject', subject,
-                           '--oannot',out_file],
-                          env=my_env).returncode !=0:
+                           '--oannot', annot_file],
+                          env=my_env).returncode != 0:
+            return None
+    # convert to mgh format
+    labels, _, _ = nib.freesurfer.io.read_annot(annot_file)
+    in_mgh = nib.load(in_file)
+    labels_mgh = nib.freesurfer.MGHImage(labels, in_mgh.affine, in_mgh.header)
+    nib.save(labels_mgh, out_file)
+
+    return out_file
+
+
+def sample_surf_func_stat(stat_file, white_surf_file, thickness_file,
+                          out_file=None, n_depths=12, hemi=None, force=False):
+    # sample stat to a number of intermediate surfaces
+    stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
+    stat_file_base = fsl_remove_ext(os.path.basename(os.path.abspath(stat_file)))
+
+    if out_file is None:
+        if hemi is not None:
+            out_file = os.path.join(stat_file_dir, stat_file_base + '_' +
+                                    hemi + '.mgh')
+        else:
+            out_file = os.path.join(stat_file_dir, stat_file_base + '.mgh')
+
+    if not os.path.isfile(out_file) or force == True:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            sample_file = os.path.join(tmpdirname, 'sampled_depth.mgh')
+            for i, depth in enumerate(np.linspace(0, 1, n_depths)):
+                if subprocess.run(['mri_vol2surf',
+                                   '--vol2surf',
+                                   stat_file, white_surf_file, '0', str(depth),
+                                   thickness_file, 'regheader', 'novsm', '5',
+                                   sample_file]).returncode != 0:
+                    return None
+                if i == 0:
+                    copy2(sample_file, out_file)
+                else:
+                    if subprocess.run(['mris_calc',
+                                       '--output', out_file,
+                                       out_file, 'add', sample_file]).returncode != 0:
+                        return None
+        if subprocess.run(['mris_calc',
+                           '--output', out_file,
+                           out_file, 'div', str(n_depths)]).returncode != 0:
             return None
     return out_file
 
 
-def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=None,feat_dir=None,
-                    stat_name='zstat1',fwhm=5,funcloc_labels=None,force=False):
+def get_stat_cluster_roi(parcel=None, stat_file=None, analysis_dir=None, fs_dir=None, fs_to_func_reg=None,
+                         white_surf_files=None, thickness_files=None, fwhm=5, threshold=2, force=False):
+    stat_cluster_labels = dict()
+    for hemi in ['lh', 'rh']:
+        # 1. take activation map and project to surface    
+        stat_surf = sample_surf_func_stat(stat_file, white_surf_files[hemi], thickness_files[hemi],
+                                          hemi=hemi, force=force)
+        # 2. smooth on surface
+        stat_surf_smooth = smooth_surf(stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force)
+        # 3. generate activation clusters
+        stat_cluster_labels[hemi] = cluster_surf(stat_surf_smooth, fs_dir=fs_dir, hemi=hemi,
+                                                 threshold=threshold, force=force)
+        # 4. transform cluster label files to volume
+        out_basename = fsl_remove_ext(stat_file)
+    roi = get_fs_roi(parcel, stat_cluster_labels, out_basename, analysis_dir, fs_dir,
+                     fs_to_func_reg, force)
+    return roi
+    # sample stat map to func surface (sample at multiple depths and average)
+
+    # continue like in funcloc_roi:
+    # 2. smooth on surface
+    # 3. generate cluster (consider addiyional parameters, e.g.  minarea)
+    # 4. transform cluster label files to fs volume
+    # 5. transform to func space
+
+def get_stat_cluster_atlas(hemi, stat_file=None, analysis_dir=None, fs_dir=None, fs_to_func_reg=None,
+                           white_surf_files=None, thickness_files=None, fwhm=5, threshold=2, force=False):
+    # 1. take activation map and project to surface
+    stat_surf = sample_surf_func_stat(stat_file, white_surf_files[hemi], thickness_files[hemi],
+                                      hemi=hemi, force=force)
+    # 2. smooth on surface
+    stat_surf_smooth = smooth_surf(stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force)
+    # 3. generate activation clusters
+    stat_cluster_labels = cluster_surf(stat_surf_smooth, fs_dir=fs_dir, hemi=hemi,
+                                       threshold=threshold, force=force)
+    # 4. transform cluster label files to volume
+    out_basename = fsl_remove_ext(stat_file)
+    labels_in_fs_individual = fs_overlay_to_fs_volume(stat_cluster_labels, fs_dir=fs_dir, analysis_dir=analysis_dir,
+                                                      hemi=hemi, out_basename=out_basename, force=force)
+    labels_in_func = os.path.join(analysis_dir, out_basename + '_labels_' + hemi + '_in-func.nii')
+    apply_ants_transforms(vol_in=labels_in_fs_individual,
+                          vol_out=labels_in_func,
+                          ref_vol=fs_to_func_reg[0],
+                          affine=fs_to_func_reg[1],
+                          warp=fs_to_func_reg[2])
+
+    return labels_in_func
+
+
+def get_funcloc_roi(parcel=None, analysis_dir=None, fs_dir=None, fs_to_func_reg=None, feat_dir=None,
+                    stat_name='zstat1', fwhm=5, funcloc_labels=None, force=False):
     if feat_dir == None:
         feat_dir = os.path.join(analysis_dir, 'funcloc.feat')
     stat_file = os.path.join(feat_dir, 'stats', stat_name + '.nii.gz')
@@ -368,10 +463,10 @@ def get_funcloc_roi(parcel=None,analysis_dir=None,fs_dir=None,fs_to_func_reg=Non
         # 3. generate activation clusters
         funcloc_labels[hemi] = cluster_surf(stat_surf_smooth, fs_dir=fs_dir, hemi=hemi, force=force)
         # 4. transform cluster label files to volume
-    out_basename='funcloc'
-    roi = get_fs_annot_roi(parcel,funcloc_labels,out_basename,analysis_dir,fs_dir,
-                           fs_to_func_reg,force)
-    return roi                     
+    out_basename = 'funcloc'
+    roi = get_fs_roi(parcel, funcloc_labels, out_basename, analysis_dir, fs_dir,
+                     fs_to_func_reg, force)
+    return roi
 
 
 def get_md_roi(parcel=None, analysis_dir=None, ciftify_dir=None, fs_to_func_reg=None,
@@ -391,12 +486,12 @@ def get_glasser_roi(parcel=None, analysis_dir=None, ciftify_dir=None, fs_to_func
                     glasser_labels=None, force=False):
     """Returns a HCP MMP 1.0 atlas ROI (Glasser et al. 2016) transformed to functional space
     """
-    if glasser_labels==None:
-        glasser_labels={'L':'/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.32k_fs_LR.label.gii',
-                        'R':'/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.32k_fs_LR.label.gii'}
-    out_basename='glasser'
-    roi = get_fs_LR_atlas_roi(parcel,glasser_labels,out_basename,analysis_dir,ciftify_dir,
-                              fs_to_func_reg,force)
+    if glasser_labels == None:
+        glasser_labels = {'L': '/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.32k_fs_LR.label.gii',
+                          'R': '/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.32k_fs_LR.label.gii'}
+    out_basename = 'glasser'
+    roi = get_fs_LR_atlas_roi(parcel, glasser_labels, out_basename, analysis_dir, ciftify_dir,
+                              fs_to_func_reg, force)
     return roi
 
 
@@ -520,7 +615,7 @@ def calc_percent_change_trialavg(trialavg_files, baseline_file, inv_change=False
                 in_file_b=baseline_file,
                 out_file=out_file,
                 expr=expr,
-                args='-overwrite').run()            
+                args='-overwrite').run()
             prc_change.append(result_prcchg.outputs.out_file)
         else:
             prc_change.append(out_file)
@@ -613,15 +708,31 @@ def get_funcact_roi_vfs(act_file, columns_file, roi_out_file, threshold=1):
     nib.save(mask_nii, roi_out_file)
     return mask_nii
 
-def roi_and(roi1,roi2):
-    # TODO: change to list as roi input!
-    return intersect_masks((roi1,roi2), threshold=1, connected=False)
+
+def roi_and(rois):
+    rois = [mask_image(rois[0], roi) for roi in rois]
+    return intersect_masks(rois, threshold=1, connected=False)
+
 
 def roi_or(rois):
     return intersect_masks(rois, threshold=0, connected=False)
 
 
-def bold_correct(nulled_file,notnulled_file,out_file,notnulled_shift=None,force=None):
+def mask_image(img, mask):
+    if type(img) is str:
+        img = nib.load(img)
+    if type(mask) is str:
+        mask = nib.load(mask)
+
+    img_data = img.get_fdata()
+    mask_data = mask.get_fdata()
+
+    img_masked_data = img_data * (mask_data != 0)
+
+    return nib.Nifti1Image(img_masked_data, img.affine, img.header)
+
+
+def bold_correct(nulled_file, notnulled_file, out_file, notnulled_shift=None, force=None):
     """ notnulled_shift should equal (positive) difference between readout blocks
     """
     if not os.path.isfile(out_file) or force == True:
@@ -799,101 +910,174 @@ def get_labels_data_layers(data_file, labels_file, print_results=False, label_na
 
 def get_labels_data_layers_masked(data_file, labels_file, print_results=False, label_names=None):
     pass
+
+
+import matplotlib.pyplot as plt
+import nibabel as nib
+import nilearn.plotting as plotting
+import numpy as np
+import hcp_utils as hcp
+
+def plot_on_mmhcp_surface(Xp):
+    """Xp is a 1D Vector same size as hcp.mmp.labels.
+    """
+    mmp_labels=hcp.mmp.labels #mmp = Glasser parcellation
+
+    cm = 'cold_hot'
+    min_thresh = 0
+    max_thresh = 0.1
+
+    #2D plot – I also detail here with an example how you can add subplots…
+    fig = plt.figure(figsize=[20,10])
+    ax = fig.add_subplot(1, 4,1, projection='3d')
+    plotting.plot_surf_stat_map(hcp.mesh.inflated,
+                                hcp.cortex_data(hcp.unparcellate(Xp, hcp.mmp)),
+                                view='anterior',
+                                colorbar=True,
+                                threshold=min_thresh,
+                                vmax=max_thresh,
+                                bg_map=hcp.mesh.sulc,
+                                bg_on_data=True,
+                                darkness=0.3,
+                                axes=ax,
+                                figure=fig,
+                                cmap=cm,
+                                symmetric_cbar=True)
     
-### FinnReplicationPilot specifc functions
-def plot_finn_panel(depths,roi,trialavg_data,run_type,layers,ax,d=0,TR=3.702):
+    ax = fig.add_subplot(1, 4,2, projection='3d')
+    plotting.plot_surf_stat_map(hcp.mesh.inflated,
+                                hcp.cortex_data(hcp.unparcellate(Xp, hcp.mmp)),
+                                view='lateral',
+                                colorbar=True,
+                                threshold=min_thresh,
+                                vmax=max_thresh,
+                                bg_map=hcp.mesh.sulc,
+                                bg_on_data=True,
+                                darkness=0.3,
+                                axes=ax,
+                                figure=fig,
+                                cmap=cm,
+                                symmetric_cbar=True)
+
+    fig.suptitle('title', fontsize=16)
+    plt.savefig('output.png',facecolor='white')
+    plt.close()
+ 
+    # or alternatively, you can get this in 3D and interact with it in html (on the cluster you need to use the Chrome browser)
+    nn = plotting.view_surf(hcp.mesh.inflated,
+                            hcp.cortex_data(hcp.unparcellate(Xp, hcp.mmp)),
+                            bg_map=hcp.mesh.sulc,
+                            symmetric_cmap=False,
+                            vmax= max_thresh,
+                            vmin=min_thresh,
+                            title='title')
+    nn.save_as_html('output.html')
+    
+
+    ### FinnReplicationPilot specifc functions
+
+
+def plot_finn_panel(depths, roi, trialavg_data, run_type, layers, ax, d=0, TR=3.702):
     condition_data = []
     for file in trialavg_data:
-        sampled_data, sampled_depths = sample_depths(file,roi,depths)
-        if layers=='deep':
-            condition_data.append(np.mean(sampled_data[:,sampled_depths<(0.5-d)],axis=1))
-        elif layers=='superficial':
-            condition_data.append(np.mean(sampled_data[:,sampled_depths>(0.5-d)],axis=1))
-            
-    if run_type=='alpharem':
-        labels=['rem','alpha']
-        colors=['tab:green','tab:blue']
-    elif run_type=='gonogo':
-        labels=['nogo','go']
-        colors=['tab:orange','tab:red']
-        
-    plot_cond_tcrs(condition_data,TR=TR,
+        sampled_data, sampled_depths = sample_depths(file, roi, depths)
+        if layers == 'deep':
+            condition_data.append(np.mean(sampled_data[:, sampled_depths < (0.5 - d)], axis=1))
+        elif layers == 'superficial':
+            condition_data.append(np.mean(sampled_data[:, sampled_depths > (0.5 - d)], axis=1))
+
+    if run_type == 'alpharem':
+        labels = ['rem', 'alpha']
+        colors = ['tab:green', 'tab:blue']
+    elif run_type == 'gonogo':
+        labels = ['nogo', 'go']
+        colors = ['tab:orange', 'tab:red']
+    else:
+        return None
+
+    plot_cond_tcrs(condition_data, TR=TR,
                    labels=labels,
                    colors=colors,
                    periods=[[4, 14], [14, 20]],
                    events=[['Stim', 0], ['Cue', 4], ['Probe', 14]], ax=ax)
     plt.title(layers)
-    
-def plot_finn_tcrses(depths,roi,trialavg_alpharem,trialavg_gonogo,d=0,TR=3.702):
-    if type(depths)==str:
+    return condition_data
+
+
+def plot_finn_tcrses(depths, roi, trialavg_alpharem, trialavg_gonogo, d=0, TR=3.702,
+                     ymin=-0.5, ymax=1.5):
+    if type(depths) == str:
         depths = nib.load(depths)
-        
-    fig=plt.figure(figsize=(10,8), dpi= 100, facecolor='w', edgecolor='k')
-    ax = plt.subplot(2,2,1)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpharem','superficial',ax,d,TR=TR)
-    ax.axis([0,30,-0.5, 1.5])
-                    
-    ax = plt.subplot(2,2,2)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'gonogo','superficial',ax,d,TR=TR)
-    ax.axis([0,30,-0.5, 1.5])
-    
-    ax = plt.subplot(2,2,3)
-    plot_finn_panel(depths,roi,trialavg_alpharem,'alpharem','deep',ax,d,TR=TR)
-    ax.axis([0,30,-0.5, 1.5])
-    
-    ax = plt.subplot(2,2,4)
-    plot_finn_panel(depths,roi,trialavg_gonogo,'gonogo','deep',ax,d,TR=TR)
-    ax.axis([0,30,-0.5, 1.5])
-def get_finn_tcrs_data(trial_averages,roi,):
-    data = dict()
-    for layer in layers:
-        for condition in conditions:
-            for modality in modalities:
-                data[modality,layer,condition] = np.loadtxt(
-                    fnamebase + modality + '_' + layer + '_'+  condition + '.1D')
-    return data
 
-def plot_finn_tcrs(fnamebase,modality,TR=3.702):
-    data = get_finn_tcrs_data(fnamebase)
-    fix, axes = plt.subplot(2,3,figsize=(15,5))
-    periods=[[4,14],[14,20]]
-    events=[['Stim',0],['Cue',4],['Probe',14]]
-    for row, layer in enumerate(layers):
-        plot_cond_tcrs([data[modality,layer,'alpha'],
-                        data[modality,layer,'rem']],
-                       colors=('tab:blue','tab:green'),
-                       labels=('alpha','rem'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
-        
-        plot_cond_tcrs([data[modality,layer,'go'],
-                        data[modality,layer,'nogo']],
-                       colors=('tab:red','tab:orange'),
-                       labels=('act','non-act'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
+    fig = plt.figure(figsize=(10, 8), dpi=100, facecolor='w', edgecolor='k')
+    ax = plt.subplot(2, 2, 1)
+    plot_finn_panel(depths, roi, trialavg_alpharem, 'alpharem', 'superficial', ax, d, TR=TR)
+    ax.axis([0, 30, ymin, ymax])
 
-        plot_cond_tcrs([data[modality,layer,'alpha'] -  data[modality,layer,'rem'],
-                        data[modality,layer,'go'] - data[modality,layer,'nogo']],                  
-                       colors=('tab:purple','tab:cyan'),
-                       labels=('alpha - rem','act - non-act'),
-                       periods=periods,
-                       events=events,
-                       TR=TR,
-                       ax=axes[row,0])
-    axes[0,0].set_ylabel('signal change [%]')
-    axes[1,0].set_ylabel('signal change [%]')
-    axes[1,0].set_xlabel('trial time [s]')
-    axes[1,1].set_xlabel('trial time [s]')
-    axes[1,2].set_xlabel('trial time [s]')
-        
-    fig.text(0.08,0.45,'deeper',ha='right',weight='bold')
-    fig.text(0.08,0.85,'superficial',ha='right',weight='bold')
-    fig.suptitle(modality.upper(),weight='bold')
+    ax = plt.subplot(2, 2, 2)
+    plot_finn_panel(depths, roi, trialavg_gonogo, 'gonogo', 'superficial', ax, d, TR=TR)
+    ax.axis([0, 30, ymin, ymax])
+
+    ax = plt.subplot(2, 2, 3)
+    plot_finn_panel(depths, roi, trialavg_alpharem, 'alpharem', 'deep', ax, d, TR=TR)
+    ax.axis([0, 30, ymin, ymax])
+
+    ax = plt.subplot(2, 2, 4)
+    plot_finn_panel(depths, roi, trialavg_gonogo, 'gonogo', 'deep', ax, d, TR=TR)
+    ax.axis([0, 30, ymin, ymax])
+
+
+# def get_finn_tcrs_data(trial_averages, roi, layers=None, conditions=None, modalities=None):
+#     data = dict()
+#     for layer in layers:
+#         for condition in conditions:
+#             for modality in modalities:
+#                 data[modality, layer, condition] = np.loadtxt(
+#                     fnamebase + modality + '_' + layer + '_' + condition + '.1D')
+#     return data
+
+
+# def plot_finn_tcrs(fnamebase, modality, TR=3.702):
+#     data = get_finn_tcrs_data(fnamebase)
+#     fix, axes = plt.subplot(2, 3, figsize=(15, 5))
+#     periods = [[4, 14], [14, 20]]
+#     events = [['Stim', 0], ['Cue', 4], ['Probe', 14]]
+#     for row, layer in enumerate(layers):
+#         plot_cond_tcrs([data[modality, layer, 'alpha'],
+#                         data[modality, layer, 'rem']],
+#                        colors=('tab:blue', 'tab:green'),
+#                        labels=('alpha', 'rem'),
+#                        periods=periods,
+#                        events=events,
+#                        TR=TR,
+#                        ax=axes[row, 0])
+#
+#         plot_cond_tcrs([data[modality, layer, 'go'],
+#                         data[modality, layer, 'nogo']],
+#                        colors=('tab:red', 'tab:orange'),
+#                        labels=('act', 'non-act'),
+#                        periods=periods,
+#                        events=events,
+#                        TR=TR,
+#                        ax=axes[row, 0])
+#
+#         plot_cond_tcrs([data[modality, layer, 'alpha'] - data[modality, layer, 'rem'],
+#                         data[modality, layer, 'go'] - data[modality, layer, 'nogo']],
+#                        colors=('tab:purple', 'tab:cyan'),
+#                        labels=('alpha - rem', 'act - non-act'),
+#                        periods=periods,
+#                        events=events,
+#                        TR=TR,
+#                        ax=axes[row, 0])
+#     axes[0, 0].set_ylabel('signal change [%]')
+#     axes[1, 0].set_ylabel('signal change [%]')
+#     axes[1, 0].set_xlabel('trial time [s]')
+#     axes[1, 1].set_xlabel('trial time [s]')
+#     axes[1, 2].set_xlabel('trial time [s]')
+#
+#     fig.text(0.08, 0.45, 'deeper', ha='right', weight='bold')
+#     fig.text(0.08, 0.85, 'superficial', ha='right', weight='bold')
+#     fig.suptitle(modality.upper(), weight='bold')
 
 
 def finn_trial_averaging(run_type, analysis_dir, force=False):
@@ -974,6 +1158,38 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_nulled
 
 
+def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=False):
+    trial_duration = 32
+    trial_order = paradigm(run_type)
+    trialavg = dict()
+    onset_delay = 8
+    in_files_bold = [os.path.join(analysis_dir, f'func_{run_type}_notnulled.nii')]
+    in_files_vaso = [os.path.join(analysis_dir, f'func_{run_type}_rvaso.nii')]
+    stim_times_runs = [calc_stim_times(onset_delay=8, trial_duration=trial_duration,
+                                       trial_order=trial_order)]
+    trialavg_files_bold, baseline_file_bold, fstat_file_bold = \
+        average_trials_3ddeconvolve(in_files_bold, stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg3_bold_' + run_type,
+                                    polort=5, force=force)
+
+    trialavg_files_vaso, baseline_file_vaso, fstat_file_vaso = \
+        average_trials_3ddeconvolve(in_files_vaso,
+                                    stim_times_runs,
+                                    trial_duration,
+                                    out_files_basename='trialavg3_vaso_' + run_type,
+                                    polort=5, force=force)
+
+    trialavg_bold_prcchg = calc_percent_change_trialavg(trialavg_files_bold,
+                                                        baseline_file_bold,
+                                                        inv_change=False, force=force)
+    trialavg_vaso_prcchg = calc_percent_change_trialavg(trialavg_files_vaso,
+                                                        baseline_file_vaso,
+                                                        inv_change=True, force=force)
+
+    return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
+
+
 # Define a function to obtain some paradigm related info. (For now trial order, TODO: trial period timings, GLM events, ...)
 # we need:
 # for trial averaging: exact trial onset times (what about VASO,GE-BOLD shifts?) with conditions
@@ -1005,12 +1221,14 @@ def paradigm(run_type):
         interTrialDuration = 16
 
         startBlankPeriod = 8
-        
-        if run_type=='alpharem':
-            trial_order=[2,3,3,3,2,2,3,2,3,3,2,2,2,3,2,3,3,3,2,2]
-        elif run_type=='gonogo':
-            trial_order=[4,5,5,5,4,4,5,4,5,5,4,4,4,5,4,5,5,5,4,4]
-    
+
+        if run_type == 'alpharem':
+            trial_order = [2, 3, 3, 3, 2, 2, 3, 2, 3, 3, 2, 2, 2, 3, 2, 3, 3, 3, 2, 2]
+        elif run_type == 'gonogo':
+            trial_order = [4, 5, 5, 5, 4, 4, 5, 4, 5, 5, 4, 4, 4, 5, 4, 5, 5, 5, 4, 4]
+    else:
+        return None
+
     return trial_order
 
 
@@ -1018,7 +1236,7 @@ def paradigm(run_type):
 
 def preprocess_funcloc(data):
     # motion correction
-    
+
     # spatial smoothing
 
     # high pass filtering
@@ -1027,9 +1245,13 @@ def preprocess_funcloc(data):
 
     pass
 
-def feat_analysis(feat_template,func_file,output_dir,stim_timings_dir,smoothing_fwhm=0):
+
+def feat_analysis(feat_template, func_file, output_dir, stim_timings_dir, smoothing_fwhm=0, overwrite=False):
     cwd = os.path.dirname(os.path.normpath(output_dir))
     feat_template_base = os.path.basename(os.path.normpath(feat_template))
+
+    if overwrite == True:
+        rmtree(output_dir)
 
     # copy
     subprocess.run(['cp', feat_template, '.'], cwd=cwd)
@@ -1050,6 +1272,7 @@ def feat_analysis(feat_template,func_file,output_dir,stim_timings_dir,smoothing_
 def fs_surf_to_fs_volume():
     pass
 
+
 def get_mni_coord_roi():
     # generate an ROI based on mni coordinates and a radius around
     # (
@@ -1062,6 +1285,7 @@ def layer_extend_roi_laynii():
 
 def layer_extend_roi_vfs(roi):
     pass
+
 
 def plot_timecourses():
     pass
