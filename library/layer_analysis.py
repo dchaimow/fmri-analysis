@@ -16,14 +16,24 @@ from nipype.interfaces.freesurfer import MRIsConvert
 from nipype.interfaces.fsl import SliceTimer
 from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
 
-
 def fsl_remove_ext(filename):
+    """
+    Removes extension from filename using fsl's remove_ext
+    :param filename:
+    :return:
+    """
     result = subprocess.run(['remove_ext', filename], stdout=subprocess.PIPE)
     return result.stdout.strip().decode()
 
-
+### Registrations and Transform related functions
 def surftransform_gii(gii_surf, transforms, invert_transform_flags, cwd=None):
-    """Takes gifti surface and applies ants transforms
+    """
+    Takes gifti surface and applies ants transforms
+    :param gii_surf:
+    :param transforms:
+    :param invert_transform_flags:
+    :param cwd:
+    :return:
     """
     if cwd is None:
         cwd = os.path.dirname(os.path.normpath(gii_surf))
@@ -49,6 +59,15 @@ def surftransform_gii(gii_surf, transforms, invert_transform_flags, cwd=None):
 
 
 def surftransform_fs(fs_surf, transforms, invert_transform_flags, out_file, cwd=None):
+    """
+    Takes freesurfer surface and applies ants transforms
+    :param fs_surf:
+    :param transforms:
+    :param invert_transform_flags:
+    :param out_file:
+    :param cwd:
+    :return:
+    """
     if cwd == None:
         cwd = os.path.dirname(os.path.normpath(out_file))
     # convert fs to gii
@@ -67,6 +86,14 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags, out_file, cwd=
 
 
 def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
+    """
+    Transforms freesurfer surfaces to functional space using ANTs transfrom.
+    :param fs_to_func_reg:
+    :param fs_dir:
+    :param analysis_dir:
+    :param force:
+    :return:
+    """
     if analysis_dir == None:
         analysis_dir = os.path.join(fs_dir, 'surf')
     transform_0_lin = fs_to_func_reg[1]
@@ -87,6 +114,14 @@ def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
 
 
 def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
+    """
+    Transforms ciftify surfaces to functional space using ANTs transfrom.
+    :param fs_to_func_reg:
+    :param ciftify_dir:
+    :param analysis_dir:
+    :return:
+    """
+    # TODO: not working correctly -> check and fix
     if analysis_dir is None:
         analysis_dir = os.path.join(ciftify_dir, 'T1w', 'fsaverage_LR32k')
     ciftify_subject = os.path.basename(os.path.normpath(ciftify_dir))
@@ -111,6 +146,16 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
 
 def process_vaso(session_dir, process_script, analysis_dir=None, alpharem_runs=None, gonogo_runs=None,
                  analysis_subdir='analysis'):
+    """
+    Wrapper function to run an external script that does VASO processing.
+    :param session_dir:
+    :param process_script:
+    :param analysis_dir:
+    :param alpharem_runs:
+    :param gonogo_runs:
+    :param analysis_subdir:
+    :return:
+    """
     if analysis_dir is None:
         analysis_dir = os.path.join(session_dir, analysis_subdir)
     if not os.path.isdir(analysis_dir):
@@ -124,8 +169,15 @@ def process_vaso(session_dir, process_script, analysis_dir=None, alpharem_runs=N
         subprocess.run([process_script, session_dir, analysis_dir])
     return analysis_dir
 
-
 def register_fs_to_vasot1(fs_dir, analysis_dir, use_brain=False, force=False):
+    """
+    Wrapper function to run an external script that does registration of freesurfer dataset to VASO T1
+    (functional space).
+    :param fs_dir:
+    :param analysis_dir:
+    :param use_brain:
+    :param force:
+    """
     if not os.path.isfile(os.path.join(analysis_dir, 'fs_to_func_0GenericAffine.mat')) \
             or force == True:
         if use_brain == True:
@@ -140,7 +192,14 @@ def register_fs_to_vasot1(fs_dir, analysis_dir, use_brain=False, force=False):
 
 
 def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
-    """Applies ANTS non-linear registration transform, consisting of 1. warp and 2. affine to input volume.
+    """
+    Wrapper function to run an external script that applies a ANTS non-linear registration transform,
+    consisting of 1. warp and 2. affine to input volume.
+    :param vol_in:
+    :param vol_out:
+    :param ref_vol:
+    :param affine:
+    :param warp:
     """
     subprocess.run(['antsApplyTransforms',
                     '--interpolation', 'BSpline''[5]''',
@@ -151,7 +210,7 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
                     '-t', affine,
                     '-o', vol_out,
                     '-n', 'NearestNeighbor'])
-
+    # TODO: Check if the following comment can be removed.
     # NOTE: It seemed necessary, because the resulting affine from ANTS was not exactly the same as the ref volume
     # (they differ at the 8th decimal after the dot), but why are they not exatly the same?
     # nii_vol_out = nib.load(vol_out)
@@ -161,9 +220,13 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
     # nib.save(nii_vol_out,vol_out)
 
 def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
-    """Calls shell script in fmri-analysis/library
-    TODO: port to python function
-    assume fs_to_func_reg files in analysis_dir
+    """
+    Wrapper function to run external script that imports gray matter ribbon from freesurfer dataset and
+    transforms it to functional space. Assumes there are fs-to-func registration files in analysis_dir
+    :param fs_dir:
+    :param analysis_dir:
+    :param force:
+    :return:
     """
     rim_file = os.path.join(analysis_dir, 'rim.nii')
     if not os.path.isfile(rim_file) or force == True:
@@ -174,9 +237,14 @@ def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
             return None
     return rim_file
 
+### ROI related functions
 
 def index_roi(roi, idx):
-    """Extracts ROI with a specific index from a multi-index label file.
+    """
+    Extracts ROI with a specific index from a multi-index label file.
+    :param roi:
+    :param idx:
+    :return:
     """
     return math_img(f'img=={idx}', img=roi)
 
@@ -710,11 +778,13 @@ def get_funcact_roi_vfs(act_file, columns_file, roi_out_file, threshold=1):
 
 
 def roi_and(rois):
+    # TODO: check out if using mask_image on rois is correct for ignoring affine.
     rois = [mask_image(rois[0], roi) for roi in rois]
     return intersect_masks(rois, threshold=1, connected=False)
 
 
 def roi_or(rois):
+    # TODO: check whether to use mask_image on rois for ignoring affine (see roi_and)
     return intersect_masks(rois, threshold=0, connected=False)
 
 
@@ -974,8 +1044,7 @@ def plot_on_mmhcp_surface(Xp):
     nn.save_as_html('output.html')
     
 
-    ### FinnReplicationPilot specifc functions
-
+### FinnReplicationPilot specifc functions
 
 def plot_finn_panel(depths, roi, trialavg_data, run_type, layers, ax, d=0, TR=3.702):
     condition_data = []
