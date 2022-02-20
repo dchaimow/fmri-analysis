@@ -8,7 +8,7 @@ from shutil import rmtree, copy2
 
 import pandas as pd
 from nilearn._utils import check_niimg
-from nilearn.image import math_img
+from nilearn.image import math_img, mean_img, index_img
 from nilearn.masking import apply_mask, intersect_masks
 from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Calc, TStat
 from nipype.interfaces.ants import ApplyTransformsToPoints
@@ -992,7 +992,10 @@ def average_trials_3ddeconvolve(
 
 
 def calc_percent_change_trialavg(
-    trialavg_files, baseline_file, inv_change=False, force=False
+    trialavg_files,
+    baseline_file,
+    inv_change=False,
+    force=False,
 ):
     if inv_change:
         expr = "100-(100*a/b)"
@@ -1014,6 +1017,30 @@ def calc_percent_change_trialavg(
         else:
             prc_change.append(out_file)
     return prc_change
+
+
+def calc_normalized_trialavg(
+    trialavg_files,
+    baseline_vols=None,
+    force=False,
+):
+    """
+    Normalizes trial average by adding back baseline and dividing by mean from defined baseline volumes
+    """
+    expr = "(img1/img2[:,:,:,None])"
+    normalized_imgs = []
+    for trialavg_file in trialavg_files:
+        trialavg_file_split = os.path.splitext(trialavg_file)
+        out_file = trialavg_file_split[0] + "_norm" + trialavg_file_split[1]
+        if not os.path.isfile(out_file) or force == True:
+            baseline = mean_img(index_img(trialavg_file, baseline_vols))
+            math_img(
+                expr,
+                img1=trialavg_file,
+                img2=baseline,
+            ).to_filename(out_file)
+        normalized_imgs.append(out_file)
+    return normalized_imgs
 
 
 def plot_cond_tcrs(
@@ -1737,6 +1764,64 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
     )
 
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
+
+
+def finn_trial_averaging_on_boldcorrect_finn_baselining(
+    run_type, analysis_dir, force=False
+):
+    trial_duration = 32
+    trial_order = paradigm(run_type)
+    trialavg = dict()
+    onset_delay = 8
+    in_files_bold = [
+        os.path.join(analysis_dir, f"func_{run_type}_notnulled_tshift.nii")
+    ]
+    in_files_vaso = [os.path.join(analysis_dir, f"func_{run_type}_vaso.nii")]
+    stim_times_runs = [
+        calc_stim_times(
+            onset_delay=8, trial_duration=trial_duration, trial_order=trial_order
+        )
+    ]
+
+    tr = nib.load(in_files_bold[0]).header.get_zooms()[3]
+    trial_average_duration = tr * 12  # average 12 vols = 44.3s > 32s (trial length)
+    baseline_vols = [6, 7, 8, 9, 10, 11]
+    (
+        trialavg_files_bold,
+        baseline_file_bold,
+        fstat_file_bold,
+    ) = average_trials_3ddeconvolve(
+        in_files_bold,
+        stim_times_runs,
+        trial_average_duration,
+        out_files_basename="trialavg4_bold_" + run_type,
+        polort=0,  # no detrending, just averaging
+        onset_shift=tr,  # start average 1TR before stim onset
+        force=force,
+    )
+
+    (
+        trialavg_files_vaso,
+        baseline_file_vaso,
+        fstat_file_vaso,
+    ) = average_trials_3ddeconvolve(
+        in_files_vaso,
+        stim_times_runs,
+        trial_average_duration,
+        out_files_basename="trialavg4_vaso_" + run_type,
+        polort=0,  # no detrending, just averaging
+        onset_shift=tr,  # start average 1TR before stim onset
+        force=force,
+    )
+
+    trialavg_bold_norm = calc_normalized_trialavg(
+        trialavg_files_bold, baseline_vols=baseline_vols, force=force
+    )
+    trialavg_vaso_norm = calc_normalized_trialavg(
+        trialavg_files_vaso, baseline_vols=baseline_vols, force=force
+    )
+
+    return trialavg_bold_norm, trialavg_vaso_norm, fstat_file_bold, fstat_file_vaso
 
 
 # Define a function to obtain some paradigm related info. (For now trial order, TODO: trial period timings, GLM events, ...)
