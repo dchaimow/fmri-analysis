@@ -581,19 +581,19 @@ def cluster_surf(
 
     return out_file
 
-def sample_surf_hcp(volume_file, white_surf, mid_surf, pial_surf, outfile, mask_file=None):
+def sample_surf_hcp(volume_file, white_surf, pial_surf, outfile, mask_file=None):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
     - generates midthickness if file does not exists
     :return:
     """
-    # if not exist: create midthickness
-    if  not os.path.isfile(mid_surf):
-        subprocess.run(["wb_command",
-                        "-surface-average",
-                        mid_surf,
-                        "-surf",pial_surf,
-                        "-surf",white_surf])
+    # create midthickness
+    mid_surf = tempfile.mktemp(suffix=".surf.gii")
+    subprocess.run(["wb_command",
+                    "-surface-average",
+                    mid_surf,
+                    "-surf",pial_surf,
+                    "-surf",white_surf])
 
     cmd = [
             "wb_command",
