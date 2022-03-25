@@ -539,7 +539,7 @@ def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0, force=Fa
 
 
 def cluster_surf(
-    in_file, out_file=None, fs_dir=None, hemi=None, threshold=10, force=False
+        in_file, out_file=None, fs_dir=None, hemi=None, threshold=10, force=False,sign="pos"
 ):
     if out_file == None:
         out_file = os.path.splitext(os.path.normpath(in_file))[0] + "_clusters.mgh"
@@ -560,7 +560,7 @@ def cluster_surf(
                     "--thmin",
                     str(threshold),
                     "--sign",
-                    "pos",
+                    sign,
                     "--hemi",
                     hemi,
                     "--subject",
