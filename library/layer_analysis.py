@@ -581,6 +581,47 @@ def cluster_surf(
 
     return out_file
 
+def sample_surf_hcp(volume_file, white_surf, mid_surf, pial_surf, outfile, mask_file=None):
+    """
+    Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
+    - generates midthickness if file does not exists
+    :return:
+    """
+    # if not exist: create midthickness
+    if  not os.path.isfile(mid_surf):
+        subprocess.run(["wb_command",
+                        "-surface-average",
+                        mid_surf,
+                        "-surf",pial_surf,
+                        "-surf",white_surf])
+
+    cmd = [
+            "wb_command",
+            "-volume-to-surface-mapping",
+            volume_file,
+            mid_surf,
+            outfile,
+            "-ribbon-constrained",
+            white_surf,
+            pial_surf,
+        ]
+    if mask_file:
+        cmd += []
+        volume_roi_cmd = ["-volume-roi", mask_file]
+    if subprocess.run(cmd):
+        return outfile
+    else:
+        return None
+
+
+def sample_surf_to_fs_LR(volume_file, ciftify_dir, cwd, mask=None):
+    # optional: create ribbon and good voxel mask if 4D functional data
+
+    # call to sample_surf_hcp
+    # optional: fill in holes
+    # mask medial wall?
+    # call to transform to fs_LR (to write)
+    pass
 
 def sample_surf_func_stat(
     stat_file,

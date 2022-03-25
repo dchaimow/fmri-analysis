@@ -99,6 +99,11 @@ clusters freesurfer surface overlay and produces annotation file and converts it
 external calls:
 - mri_surfcluster
 
+## sample_surf_hcp
+Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command). generates midthickness if file does not exists
+external calls:
+- wb_command
+
 ### get_fs_roi
 Takes a fs roi defined as a surface overlay and transforms it to the functional volume.
 calls:
