@@ -339,7 +339,6 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
     )
     return volume_out
 
-
 def get_fs_LR_atlas_roi(
     parcel=None,
     atlas_labels=None,
@@ -591,6 +590,7 @@ def sample_surf_func_stat(
     n_depths=12,
     hemi=None,
     force=False,
+    depths=None,
 ):
     # sample stat to a number of intermediate surfaces
     stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
@@ -602,10 +602,13 @@ def sample_surf_func_stat(
         else:
             out_file = os.path.join(stat_file_dir, stat_file_base + ".mgh")
 
+    if depths is None:
+        depths = np.linspace(0, 1, n_depths)
+
     if not os.path.isfile(out_file) or force == True:
         with tempfile.TemporaryDirectory() as tmpdirname:
             sample_file = os.path.join(tmpdirname, "sampled_depth.mgh")
-            for i, depth in enumerate(np.linspace(0, 1, n_depths)):
+            for i, depth in enumerate(depths):
                 if (
                     subprocess.run(
                         [
