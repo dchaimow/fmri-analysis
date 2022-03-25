@@ -8,6 +8,31 @@ import re
 import nibabel as nb
 from scipy.io import savemat
 
+from nipype.interfaces.base import CommandLineInputSpec, InputMultiObject
+
+# interface for motion correction:
+# - one interface for BOLD and VASO?
+# - how to specifiy image pairs?
+# - outputs:
+#  - motion corrected data
+#  - motion parameters
+#  - plots?
+# - check FSL, AFNI, ... interfaces
+class MotionCorrectionInputSpec(CommandLineInputSpec):
+    in_files = InputMultiObject(
+        File(exists=True), mandatory=True, desc="list of input nifti files"))
+
+class MotionCorrectionOutputSpec():
+    pass
+
+    
+class MotionCorrection(CommandLine):
+    pass
+
+
+
+
+
 # 1. use CommandLine Interface class
 nipype_ls = CommandLine('ls', args='-lh', terminal_output='allatonce')
 
