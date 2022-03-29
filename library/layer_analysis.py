@@ -587,8 +587,6 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
     - generates midthickness if file does not exists
     :return:
     """
-    #TODO: add fill holes
-
     # create midthickness
     if not os.path.isfile(mid_surf):
             subprocess.run(["wb_command",
@@ -608,19 +606,27 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
             pial_surf,
         ]
 
-
-    if mask_file:
-        cmd += []
-        volume_roi_cmd = ["-volume-roi", mask_file]
-
-    # add filling in of holes
-    if subprocess.run(cmd):
+    if mask_file is None:
+        if subprocess.run(cmd_volume_to_surface):
+            return outfile, mid_surf
+        else:
+            return None
+    else:
+        cmd_volume_to_surface += ["-volume-roi", mask_file]
+        cmd_fill_in_holes = [
+            'wb_command',
+            '-metric-dilate',
+            outfile,
+            mid_surf,
+            outfile,
+            '-nearest',
+        ]
+    if subprocess.run(cmd_volume_to_surface) and subprocess.run(cmd_fill_in_holes):
         return outfile, mid_surf
     else:
         return None
 
 def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir):
-
     # find names (subject) of native anf fs_LR spheres
     native_sphere = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
                                            f"*.{hemi}.sphere.MSMSulc.native.surf.gii"))[0]
@@ -637,8 +643,6 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
     fs_LR_surf_roi = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
                                             f"*.{hemi}.atlasroi.164k_fs_LR.shape.gii"))[0]
 
-    # TODO: check what the roi/masking is about, additional steps needed?
-
     cmd1 = [
         "wb_command",
         "-metric-resample",
@@ -650,7 +654,9 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
         '-area-surfs',
         native_mid_surf,
         fs_LR_mid_surf,
-        '-current-roi', native_surf_roi]
+        '-current-roi',
+        native_surf_roi
+    ]
 
     cmd2 = [
         "wb_command",
