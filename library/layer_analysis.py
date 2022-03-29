@@ -15,7 +15,7 @@ from nipype.interfaces.ants import ApplyTransformsToPoints
 from nipype.interfaces.freesurfer import MRIsConvert
 from nipype.interfaces.fsl import SliceTimer
 from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
-
+import glob
 
 def fsl_remove_ext(filename):
     """
@@ -587,6 +587,8 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
     - generates midthickness if file does not exists
     :return:
     """
+    #TODO: add fill holes
+
     # create midthickness
     if not os.path.isfile(mid_surf):
             subprocess.run(["wb_command",
@@ -595,7 +597,7 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
                     "-surf",pial_surf,
                     "-surf",white_surf])
 
-    cmd = [
+    cmd_volume_to_surface = [
             "wb_command",
             "-volume-to-surface-mapping",
             volume_file,
@@ -605,9 +607,13 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
             white_surf,
             pial_surf,
         ]
+
+
     if mask_file:
         cmd += []
         volume_roi_cmd = ["-volume-roi", mask_file]
+
+    # add filling in of holes
     if subprocess.run(cmd):
         return outfile, mid_surf
     else:
@@ -659,20 +665,43 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
     else:
         return None
 
-def sample_surf_to_fs_LR(volume_file, white_surf, pial_surf, ciftify_dir, mask=None):
-    # optional: create ribbon and good voxel mask if 4D functional data
-    # TODO: add generation and use of ribbon and good voxel mask
+def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
+                          ciftify_dir, hemi, depth_range = [0,1], mask=None, depth_file=None):
+    # if depth_file provided, use it to calculate mask, otherwise generate intermediate layer surfaces
+    # depth_range: 0 = wm boundary, 1 = pial surface
 
-    # call to sample_surf_hcp
-    sampled_on_native_surf = tempfile.mktemp(suffix=".surf.gii")
-    sampled_on_native_surf = sample_surf_hcp(volume_file, white_surf, pial_surf, sampled_on_native_surf)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        mid_surf = os.path.join(tmpdirname, 'mid.surf.gii')
+        data_native_surf = os.path.join(tmpdirname, 'data_native_surf.func.gii')
 
-    # optional: fill in holes
-    # mask medial wall?
+        # 1. generate boundary surfaces or compute layer mask
+        if depth_file:
+            depth_surfs = [white_surf, pial_surf]
+            layer_roi = math_img(f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file)
+            mask = roi_and((mask,layer_roi))
+        else:
+            depth_surfs = [os.path.join(tmpdirname, f'depth{i}.surf.gii') for i in [0,1]]
+            cmds_depth_surf = [
+                [
+                    "wb_command",
+                    "-surface-cortex-layer",
+                    white_surf,
+                    pial_surf,
+                    str(depth_range[i]),
+                    depth_surfs[i]
+                ] for i in [0,1]]
 
-    # call to transform to fs_LR (to write)
+            subprocess.run(cmds_depth_surf[0])
+            subprocess.run(cmds_depth_surf[1])
 
-    pass
+        # 2. sample
+        data_native_surf, mid_surf = sample_surf_hcp(volume_file, depth_surfs[0], depth_surfs[1], mid_surf,
+                                                     outfile=data_native_surf, mask_file=mask)
+        # 3. resample to fs_LR
+        output_file = transform_data_native_surf_to_fs_LR(data_native_surf, output_file, mid_surf, hemi, ciftify_dir)
+
+    return output_file
+
 
 def sample_surf_func_stat(
     stat_file,

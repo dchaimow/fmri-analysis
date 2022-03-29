@@ -70,6 +70,15 @@ computes an roi from HCP MMP 1.0 (Glasser) atlas in fsLR (HCP) space
 calls:
 - get_fs_LR_atlas_roi
 
+### sample_layer_to_fs_LR
+Samples volume to fs_LR surface via native surfaces using specified layer depths by first creating volumetric 
+intermediate surfaces. Use [0,1] for entire cortical ribbon. (0 = wm surface, 1 = pial surface)
+external calls:
+- wb_command -surface-cortex-layer
+calls:
+- sample_surf_hcp   
+- transform_data_native_surf_to_fs_LR
+
 ## 2nd and 3rd level function
 
 ## reg_feat_to_fs
@@ -100,9 +109,17 @@ external calls:
 - mri_surfcluster
 
 ## sample_surf_hcp
-Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command). generates midthickness if file does not exists
+Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command). 
+Generates midthickness if file does not exists (and returns file name).
 external calls:
-- wb_command
+- wb_command -volume-to-surface-mapping
+
+## transform_data_native_surf_to_fs_LR
+Transforms data from native space to fsLR space
+external calls:
+- wb_command -metric-resample
+
+
 
 ### get_fs_roi
 Takes a fs roi defined as a surface overlay and transforms it to the functional volume.
