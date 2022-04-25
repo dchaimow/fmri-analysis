@@ -1456,7 +1456,7 @@ def calc_layers_laynii(
         ]
         if method == "equivol":
             run_string_list.append("-equivol")
-            subprocess.run(run_string_list)
+        subprocess.run(run_string_list)
 
     return out_file
 
