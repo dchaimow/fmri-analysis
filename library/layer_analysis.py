@@ -291,6 +291,19 @@ def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
 ### ROI related functions
 
 
+def generate_atlas_region_hcp(atlas_file, out_file, label_list):
+    """
+    generate a surface roi from a list of atlas labels
+    """
+    atlas = nib.load(atlas_file)
+    roi_data = np.isin(atlas.darrays[0].data.copy(), label_list).astype(np.int32)
+    roi_gii = nib.GiftiImage(
+        header=atlas.header,
+        darrays=[nib.gifti.GiftiDataArray(data=roi_data, intent=1011)],
+        meta=atlas.meta,
+    )
+    roi_gii.to_filename(out_file)
+    return out_file
 def index_roi(roi, idx):
     """
     Extracts ROI with a specific index from a multi-index label file.
