@@ -634,10 +634,8 @@ def sample_surf_hcp(
         ]
 
     if mask_file is None:
-        if subprocess.run(cmd_volume_to_surface):
-            return outfile, mid_surf
-        else:
-            return None
+        subprocess.run(cmd_volume_to_surface, check=True)
+        return outfile, mid_surf
     else:
         cmd_volume_to_surface += ["-volume-roi", mask_file]
         cmd_fill_in_holes = [
@@ -648,10 +646,10 @@ def sample_surf_hcp(
             outfile,
             '-nearest',
         ]
-    if subprocess.run(cmd_volume_to_surface) and subprocess.run(cmd_fill_in_holes):
-        return outfile, mid_surf
-    else:
-        return None
+
+        subprocess.run(cmd_volume_to_surface, check=True)
+        subprocess.run(cmd_fill_in_holes, check=True)
+        return outfile
 
 def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir):
     # find names (subject) of native anf fs_LR spheres
@@ -693,10 +691,10 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
         data_fs_LR_surf
     ]
 
-    if subprocess.run(cmd1) and subprocess.run(cmd2):
-        return data_fs_LR_surf
-    else:
-        return None
+    subprocess.run(cmd1, check=True)
+    subprocess.run(cmd2, check=True)
+    return data_fs_LR_surf
+
 
 def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
                           ciftify_dir, hemi, depth_range = [0,1], mask=None, depth_file=None):
@@ -724,8 +722,8 @@ def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
                     depth_surfs[i]
                 ] for i in [0,1]]
 
-            subprocess.run(cmds_depth_surf[0])
-            subprocess.run(cmds_depth_surf[1])
+            subprocess.run(cmds_depth_surf[0], check=True)
+            subprocess.run(cmds_depth_surf[1], check=True)
 
         # 2. sample
         data_native_surf, mid_surf = sample_surf_hcp(volume_file, depth_surfs[0], depth_surfs[1], mid_surf,
