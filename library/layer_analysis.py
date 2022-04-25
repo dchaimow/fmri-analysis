@@ -650,6 +650,14 @@ def math_metric(expr, metric_out, **metrics):
     return metric_out
 
 
+def stats_metric_hcp(metric_in, op, roi=None):
+    cmd = ["wb_command", "-metric-stats", metric_in, "-reduce", op]
+    if roi is not None:
+        cmd += ["-roi", roi]
+    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
+    return float(result.stdout)
+
+
 def sample_surf_hcp(
     volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
 ):
