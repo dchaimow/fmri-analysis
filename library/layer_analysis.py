@@ -646,7 +646,7 @@ def math_metric(expr, metric_out, **metrics):
     cmd = ["wb_command", "-metric-math", expr, metric_out] + sum(
         [["-var", name, metrics[name]] for name in metrics], []
     )
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
     return metric_out
 
 
