@@ -4,49 +4,124 @@ Implements function find_roi and corresponding nipype interface FindRoi and comm
 """
 import sys
 import os
-from scipy.optimize import bisect
+from scipy.optimize import bisect, brentq
 from nipype.interfaces.workbench import MetricResample
+from nipype.interfaces.base import (
+    BaseInterfaceInputSpec,
+    TraitedSpec,
+    traits,
+    File,
+    BaseInterface,
+)
 from tempfile import TemporaryDirectory
 import subprocess
+import nibabel as nib
+import numpy as np
+import shutil
+import dsargparse
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 sys.path.append("/data/p_02389/code/fmri-analysis/library/")
 import layer_analysis as analysis
+
+debug_print = False
+
 
 def find_roi(
     stat_file,
     anat_region,
     out_file,
-    target,
     target_type,
+    target,
     white_surf,
     pial_surf,
     hemi,
     anat_require_region=None,
-    cluster=True,
+    cluster_roi=True,
     fwhm=3,
     cwd=None,
 ):
+    """Hello.
+
+    Finds an roi that most closely meets criteria based on predefined regions (e.g. using atlas parcels and
+    activation maps.)
+
+    Args:
+      stat_file: nifti volume file of activation statistic (only positive is used)
+      anat_region: gifti surface mask of region (e.g. from atlas)
+      out_file: name of generated roi nifti volume fil
+      target_type: target measure, can be one of 'area','percentile','threshold','voxels' (not implemented)
+      target: quantity of target measure for activation cluster/vertices/voxels
+      white_surf: white surface as .gii in native volume space
+      pial_surf: pial surface as .gii in native volume space
+      hemi: hemisphere 'L' or 'R'
+
+      cluster_roi: if True, use extract largest consecutive cluster of voxels
+      anat_require_region: part of anat_region that cluster is strictly required to ovelap with (surface mask or None)
+      fwhm: smoothing kernel width (only used together with cluster)
+      cwd: current working directory (derived from output file if None)
     """
-    Finds an roi that most closely meets criteria based on predefined regions (e.g. atlas
-    based and on activation maps.
 
-    required inputs:
+    # define function to calculate rois as a function of threshold
+    def calc_roi(threshold):
+        roi_surf_file = os.path.join(tmpdirname, f"roi.{hash(threshold)}.shape.gii")
+        if not os.path.exists(roi_surf_file):
+            if cluster_roi:
+                # find all cluster (use anat_region as ROI)
+                clusters_file = os.path.join(tmpdirname, "stat.clusters.func.gii")
+                analysis.find_clusters_hcp(
+                    surf_stat_file,
+                    clusters_file,
+                    mid_surf,
+                    threshold,
+                    min_area=0,
+                    roi=anat_region,
+                )
 
-    stat_file           - volume file (TODO: also accept surface files?)
-    anat_region         - surface mask
-    out_file            - name of generated roi volume file
-    target              - quantity of target measure for activation cluster/vertices/voxels
-    target_type         - target measure, can be one of 'area','percentile','threshold',('voxels'?)
-    white_surf          - white surface as .gii in native volume space
-    pial_surf           - pial surface as .gii in native volume space
-    hemi                - hemisphere 'L' or 'R'
+                clusters = nib.load(clusters_file).darrays[0].data
+                if anat_require_region:
+                    anat_require = (
+                        nib.load(anat_require_region).darrays[0].data.astype(bool)
+                    )
+                    cluster_idcs = np.unique(clusters[anat_require])
+                else:
+                    cluster_idcs = np.unique(clusters)
 
-    optional:
-
-    anat_require_region - surface mask or None
-    cluster             - if True use extract largest consecutive cluster of voxels
-    fwhm                - smoothing kernel width (only used together with cluster)
-    cwd                 - current working directory (derived from output file if None)
-    """
+                A_cluster = dict()
+                for cluster_idx in cluster_idcs:
+                    if cluster_idx > 0:
+                        cluster = os.path.join(tmpdirname, "stat.cluster.func.gii")
+                        analysis.math_metric(
+                            f"clusters == {cluster_idx}",
+                            cluster,
+                            clusters=clusters_file,
+                        )
+                        A_cluster[cluster_idx] = analysis.calc_area_hcp(
+                            cluster, mid_surf
+                        )
+                if A_cluster:
+                    max_cluster_idx = max(A_cluster, key=A_cluster.get)
+                    roi_surf_file = analysis.math_metric(
+                        f"clusters == {max_cluster_idx}",
+                        roi_surf_file,
+                        clusters=clusters_file,
+                    )
+                else:
+                    roi_surf_file = analysis.math_metric(
+                        "0",
+                        roi_surf_file,
+                        clusters=clusters_file,
+                    )
+            else:
+                analysis.math_metric(
+                    f"(x > {threshold}) && roi",
+                    metric_out=roi_surf_file,
+                    x=surf_stat_file,
+                    roi=anat_region,
+                )
+        return roi_surf_file
 
     # set cwd to directory of output file, if not set otherwise
     if cwd == None:
@@ -56,124 +131,179 @@ def find_roi(
         # 1. sample stat_file to surface, use wb_command (surface neeeded as input)
         mid_surf = os.path.join(tmpdirname, "mid.surf.gii")
         surf_stat_file = os.path.join(tmpdirname, "stat.func.gii")
+        no_coverage_file = os.path.join(tmpdirname, "no_coverage.shape.gii")
         analysis.sample_surf_hcp(
             volume_file=stat_file,
             white_surf=white_surf,
             pial_surf=pial_surf,
             mid_surf=mid_surf,
-            outfile=out_file,
-            mask_file=None)
+            outfile=surf_stat_file,
+            mask_file=None,
+            roi_out=no_coverage_file,
+        )
 
         # 2. if cluster: smooth surface
-        surf_stat_smooth_file = os.path.join(tmpdirname, "stat.smooth.func.gii")
-        if cluster:
-            analysis.smooth_surfmetric_hcp(surf_stat_file,surf_stat_smooth_file,mid_surf,fwhm)
+        if cluster_roi:
+            analysis.smooth_surfmetric_hcp(
+                surf_stat_file, surf_stat_file, mid_surf, fwhm
+            )
 
-        # 3. calculate total area; if percentile, calculate area target
-        A_total = analysis.calc_area_hcp(anat_region, mid_surf)
-        if target_type == 'percentile':
-            target = (percentile/100)*A_total
-            target_type = 'area'
-        
-        # 4. use optimization function, that thresholds surface
-        if cluster:
-            # either by extracting largest above threshold cluster
-            def calc_roi(threshold):
-                roi_surf_file = os.path.join(tmpdirname,f'roi.{hash(threshold)}.shape.gii}')
-                if not os.path.exists(roi_surf_file):
-                    min_area = A_total/2
-
-                    # find all cluster (use anat_region as ROI!!!)
-                    clusters_file = os.path.join(tmpdirname, "stat.clusters.func.gii")
-                    subprocess.run(
-                        [
-                            "wb_command",
-                            "-metric-find-clusters",
-                            mid_surf,
-                            surf_stat_smooth_file,
-                            str(threshold),
-                            str(min_area),
-                            clusters_file,
-                        ],
-                        check=True,
-                    )
-                    # - apply require_region as mask to cluster_file
-                    # - load cluster file and get list of cluster numbers
-                    # - for all cluster numbers extract cluster roi and calculate area
-                    # - select largest cluster and return
-
-                    
-                    subprocess.run(
-                        [
-                            "wb_command",
-                            "-metric-remove-islands",
-                            mid_surf,
-                            cluster_file,
-                            roi_surf_file,
-                        ],
-                        check=True,
-                    )
-                return roi_file
-
+        # 4. Define optimization function
+        if target_type == "threshold":
+            tmp_roi = calc_roi(target)
         else:
-            # or directly
-            def calc_roi(threshold):
-                roi_surf_file = os.path.join(tmpdirname,f'roi.{hash(threshold)}.shape.gii}')
-                if not os.path.exists(roi_surf_file):
-                    analysis.math_metric(
-                        f"x > {threshold}",
-                        metric_out=roi_surf_file,
-                        x=surf_stat_file
-                    )
-                return roi_surf_file
+            if target_type == "percentile":
+                # calculate area of "covered" parcel
+                anat_region_covered = analysis.math_metric(
+                    "anat_region && !(not_covered)",
+                    metric_out=os.path.join(
+                        tmpdirname, "anat_region_covered.shape.gii"
+                    ),
+                    anat_region=anat_region,
+                    not_covered=no_coverage_file,
+                )
+                A_total = analysis.calc_area_hcp(anat_region_covered, mid_surf)
+                target = (target / 100) * A_total
+                target_type = "area"
+            if target_type == "area":
 
-        if target=='threshold':
-            return calc_roi(threshold)
-        else:
-            if target=='area':
-                max_area = 
                 def f(threshold):
                     roi_file = calc_roi(threshold)
+                    area = analysis.calc_area_hcp(roi_file, mid_surf)
+                    if debug_print:
+                        print(f"A({threshold}) = {area}")
                     return target - area
-            elif target=='percentile':
-                def f(threshold):
-                    roi_file = calc_roi(threshold)
-                    return target - percentile
-            elif target=='voxels':
-                def f(threshold):
-                    roi_file = calc_roi(threshold)
-            b = MAXSTAT_IN_REGION
-            threshold = bisect(f, 0, max_stat, xtol=0.01)
 
-    # 4. return roi
-    roi = None
-    return roi
- 
+            elif target_type == "voxels":
+                raise NotImplementedError("voxel target not implemented yet!")
 
-def test_find_roi():
+            max_stat = analysis.stats_metric_hcp(surf_stat_file, "MAX", anat_region)
+            threshold = brentq(f, 0, max_stat)
+
+            # 4. get final roi (on surface)
+            tmp_roi = calc_roi(threshold)
+
+        # sample surface roi to volume:
+        analysis.surf_to_vol_hcp(
+            tmp_roi,
+            out_file,
+            stat_file,
+            white_surf,
+            pial_surf,
+            mid_surf,
+            greedy=False,
+            is_roi=True,
+        )
+    return out_file
+
+
+def test_find_roi(testdata_dir):
+    # extract regions from atlas
+    analysis.generate_atlas_region_hcp(
+        os.path.join(testdata_dir, "sub-08.GlasserAtlas.native.label.gii"),
+        os.path.join(testdata_dir, "dlpfc.shape.gii"),
+        [83, 84, 73, 81, 82],
+    )
+
+    analysis.generate_atlas_region_hcp(
+        os.path.join(testdata_dir, "sub-08.GlasserAtlas.native.label.gii"),
+        os.path.join(testdata_dir, "p9_46v.shape.gii"),
+        [83],
+    )
+
     find_roi(
-        stat_file="data/fstat.nii",
-        anat_region="data/dlpfc_mask.nii",
-        require_anat_region=None,
-        out_file="data/roi.nii",
-        target="100",
-        target_type="voxels",
-        cluster=True,
+        stat_file=os.path.join(testdata_dir, "fstat.nii"),
+        anat_region=os.path.join(testdata_dir, "dlpfc.shape.gii"),
+        out_file=os.path.join(testdata_dir, "roi.nii"),
+        target_type="area",
+        target=500,
+        white_surf=os.path.join(testdata_dir, "lh.white_converted.transformed.gii"),
+        pial_surf=os.path.join(testdata_dir, "lh.pial_converted.transformed.gii"),
+        hemi="L",
+        cluster_roi=True,
+        anat_require_region=os.path.join(testdata_dir, "p9_46v.shape.gii"),
+        fwhm=3,
     )
 
 
 class FindROIInputSpec(BaseInterfaceInputSpec):
-    pass
+    stat_file = File(
+        exists=True,
+        desc="nifti volume file of activation statistic (only positive is used)",
+        mandatory=True,
+    )
+    anat_region = File(
+        exists=True,
+        desc="gifti surface mask of region (e.g. from atlas)",
+        mandatory=True,
+    )
+    out_file = File(desc="name of generated roi nifti volume file", mandatory=True)
+    target_type = traits.Enum(
+        "area",
+        "percentile",
+        "thredhold",
+        "voxels",
+        desc="target measure",
+        mandatory=True,
+    )
+    target = traits.Float(
+        desc="quantity of target measure for activation cluster/vertices/voxels",
+        mandatory=True,
+    )
+    white_surf = File(
+        exists=True, desc="white surface as .gii in native volume space", mandatory=True
+    )
+    pial_surf = File(
+        exists=True, desc="pial surface as .gii in native volume space", mandatory=True
+    )
+    hemi = traits.Enum("L", "R", desc="hemisphere", mandatory=True)
+
+    # optional
+    cluster_roi = traits.Bool(
+        mandatory=False,
+        desc="if True, use extract largest consecutive cluster of voxels",
+    )
+    anat_require_region = File(
+        desc="part of anat_region that cluster is strictly required to ovelap with (surface mask or None)"
+    )
+    fwhm = traits.Float(desc="smoothing kernel width (only used together with cluster)")
 
 
-class FinROIOutputSpec(TraitedSpec):
-    pass
+class FindROIOutputSpec(TraitedSpec):
+    out_file = File(desc="the generated roi")
 
 
-class FindROI:
-    pass
+class FindROI(BaseInterface):
+    input_spec = FindROIInputSpec
+    output_spec = FindROIOutputSpec
+
+    def _run_interface(self, runtime):
+        find_roi(
+            stat_file=self.inputs.stat_file,
+            anat_region=self.inputs.anat_region,
+            out_file=self.inputs.out_file,
+            target_type=self.inputs.target_type,
+            target=self.inputs.target,
+            white_surf=self.inputs.white_surf,
+            pial_surf=self.inputs.pial_surf,
+            hemi=self.inputs.hemi,
+            cluster_roi=self.inputs.cluster_roi,
+            anat_require_region=self.inputs.anat_require_region,
+            fwhm=self.inputs.fwhm,
+        )
+        return runtime
+
+    def _list_outputs(self):
+        return {"out_file": self.inputs.out_file}
 
 
 if __name__ == "__main__":
     # process command line arguments and either call interface or implemented function
-    pass
+    parser_description = "find roi"
+    parser = dsargparse.ArgumentParser(find_roi)
+    parser.add_argument("stat_file")
+    parser.add_argument("target")
+
+    parser.parse_and_run()
+
+    # FindRoi(stat_file=args.stat_file).run()
