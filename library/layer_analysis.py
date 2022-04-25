@@ -304,6 +304,29 @@ def generate_atlas_region_hcp(atlas_file, out_file, label_list):
     )
     roi_gii.to_filename(out_file)
     return out_file
+
+
+def index_roi_surflabel_hcp(label_file, roi_out, label):
+    if type(label) == str:
+        subprocess.run(
+            ["wb_command", "-gifti-label-to-roi", label_file, roi_out, "-name", label],
+            check=True,
+        )
+    else:
+        subprocess.run(
+            [
+                "wb_command",
+                "-gifti-label-to-roi",
+                label_file,
+                roi_out,
+                "-key",
+                str(label),
+            ],
+            check=True,
+        )
+        return roi_out
+
+
 def index_roi(roi, idx):
     """
     Extracts ROI with a specific index from a multi-index label file.
