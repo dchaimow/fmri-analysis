@@ -300,7 +300,7 @@ class FindROI(BaseInterface):
 if __name__ == "__main__":
     # process command line arguments and either call interface or implemented function
     parser_description = "find roi"
-    parser = dsargparse.ArgumentParser(find_roi)
+    parser = dsargparse.ArgumentParser(main=find_roi)
     parser.add_argument("stat_file")
     parser.add_argument("target")
 
