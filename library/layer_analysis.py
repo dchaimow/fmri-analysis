@@ -658,6 +658,13 @@ def stats_metric_hcp(metric_in, op, roi=None):
     return float(result.stdout)
 
 
+def mask_metric_hcp(metric_in, metric_out, mask):
+    subprocess.run(
+        ["wb_command", "-metric-mask", metric_in, mask, metric_out], check=True
+    )
+    return metric_out
+
+
 def sample_surf_hcp(
     volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
 ):
