@@ -290,42 +290,36 @@ def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
 
 ### ROI related functions
 
-
 def generate_atlas_region_hcp(atlas_file, out_file, label_list):
     """
     generate a surface roi from a list of atlas labels
     """
     atlas = nib.load(atlas_file)
-    roi_data = np.isin(atlas.darrays[0].data.copy(), label_list).astype(np.int32)
-    roi_gii = nib.GiftiImage(
-        header=atlas.header,
-        darrays=[nib.gifti.GiftiDataArray(data=roi_data, intent=1011)],
-        meta=atlas.meta,
-    )
+    roi_data = np.isin(atlas.darrays[0].data.copy(),label_list).astype(np.int32)
+    roi_gii = nib.GiftiImage(header=atlas.header,
+                             darrays = [nib.gifti.GiftiDataArray(data=roi_data,
+                                                                 intent=1011)],
+                             meta=atlas.meta)
     roi_gii.to_filename(out_file)
     return out_file
 
-
-def index_roi_surflabel_hcp(label_file, roi_out, label):
-    if type(label) == str:
-        subprocess.run(
-            ["wb_command", "-gifti-label-to-roi", label_file, roi_out, "-name", label],
-            check=True,
-        )
+def index_roi_surflabel_hcp(label_file,roi_out,label):
+    if type(label)==str:
+        subprocess.run(['wb_command',
+                        '-gifti-label-to-roi',
+                        label_file,
+                        roi_out,
+                        '-name',
+                        label],check=True)
     else:
-        subprocess.run(
-            [
-                "wb_command",
-                "-gifti-label-to-roi",
-                label_file,
-                roi_out,
-                "-key",
-                str(label),
-            ],
-            check=True,
-        )
+        subprocess.run(['wb_command',
+                        '-gifti-label-to-roi',
+                        label_file,
+                        roi_out,
+                        '-key',
+                        str(label)],check=True)
         return roi_out
-
+                    
 
 def index_roi(roi, idx):
     """
@@ -646,18 +640,20 @@ def math_metric(expr, metric_out, **metrics):
     cmd = ["wb_command", "-metric-math", expr, metric_out] + sum(
         [["-var", name, metrics[name]] for name in metrics], []
     )
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(cmd, check=True,stdout=subprocess.DEVNULL)
     return metric_out
 
-
 def stats_metric_hcp(metric_in, op, roi=None):
-    cmd = ["wb_command", "-metric-stats", metric_in, "-reduce", op]
+    cmd = ["wb_command",
+           "-metric-stats",
+           metric_in,
+           "-reduce",op]
     if roi is not None:
-        cmd += ["-roi", roi]
+        cmd += ["-roi",roi]
     result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
     return float(result.stdout)
 
-
+    
 def mask_metric_hcp(metric_in, metric_out, mask):
     subprocess.run(
         ["wb_command", "-metric-mask", metric_in, mask, metric_out], check=True
@@ -679,53 +675,38 @@ def find_clusters_hcp(metric_in, metric_out, mid_surf, threshold, min_area=0, ro
         cmd += ["-roi", roi]
     subprocess.run(cmd, check=True)
 
-
-def surf_to_vol_hcp(
-    metric_in,
-    volume_out,
-    volume,
-    white_surf,
-    pial_surf,
-    mid_surf,
-    greedy=False,
-    is_roi=False,
-):
+def surf_to_vol_hcp(metric_in, volume_out, volume,
+                    white_surf, pial_surf, mid_surf,greedy=False,is_roi=False):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        label_file = os.path.join(tmpdirname, "roi.label.gii")
-        subprocess.run(
-            [
-                "wb_command",
-                "-metric-label-import",
-                metric_in,
-                "",
-                label_file,
-            ]
-        )
-
+        label_file = os.path.join(tmpdirname,'roi.label.gii')
+        subprocess.run(["wb_command",
+                        "-metric-label-import",
+                        metric_in,
+                        "",
+                        label_file,
+                        ])
+        
         cmd = ["wb_command"]
         if is_roi:
             metric_in = label_file
             cmd += ["-label-to-volume-mapping"]
         else:
             cmd += ["-metric-to-volume-mapping"]
-
-        cmd += [
-            metric_in,
-            mid_surf,
-            volume,
-            volume_out,
-            "-ribbon-constrained",
-            white_surf,
-            pial_surf,
-        ]
-        if greedy == True:
-            cmd += ["-greedy"]
-        subprocess.run(cmd, check=True)
+        
+        cmd += [metric_in,
+                mid_surf,
+                volume,
+                volume_out,
+                "-ribbon-constrained",
+                white_surf,
+                pial_surf]
+        if greedy==True:
+            cmd += ['-greedy']
+        subprocess.run(cmd,check=True)
     return volume_out
-
-
+    
 def sample_surf_hcp(
-    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None, roi_out=None
+        volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None, roi_out=None
 ):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
@@ -757,8 +738,8 @@ def sample_surf_hcp(
         pial_surf,
     ]
     if roi_out is not None:
-        cmd_volume_to_surface += ["-bad-vertices-out", roi_out]
-
+        cmd_volume_to_surface += ["-bad-vertices-out",roi_out]
+    
     if mask_file is None:
         subprocess.run(cmd_volume_to_surface, check=True)
         return outfile, mid_surf
@@ -1785,11 +1766,11 @@ def get_labels_data_layers_masked(
     pass
 
 
-# import matplotlib.pyplot as plt
-# import nibabel as nib
-# import nilearn.plotting as plotting
-# import numpy as np
-# import hcp_utils as hcp
+#import matplotlib.pyplot as plt
+#import nibabel as nib
+#import nilearn.plotting as plotting
+#import numpy as np
+#import hcp_utils as hcp
 
 
 def plot_on_mmhcp_surface(Xp):
