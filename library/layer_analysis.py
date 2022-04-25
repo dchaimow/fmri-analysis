@@ -680,6 +680,50 @@ def find_clusters_hcp(metric_in, metric_out, mid_surf, threshold, min_area=0, ro
     subprocess.run(cmd, check=True)
 
 
+def surf_to_vol_hcp(
+    metric_in,
+    volume_out,
+    volume,
+    white_surf,
+    pial_surf,
+    mid_surf,
+    greedy=False,
+    is_roi=False,
+):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        label_file = os.path.join(tmpdirname, "roi.label.gii")
+        subprocess.run(
+            [
+                "wb_command",
+                "-metric-label-import",
+                metric_in,
+                "",
+                label_file,
+            ]
+        )
+
+        cmd = ["wb_command"]
+        if is_roi:
+            metric_in = label_file
+            cmd += ["-label-to-volume-mapping"]
+        else:
+            cmd += ["-metric-to-volume-mapping"]
+
+        cmd += [
+            metric_in,
+            mid_surf,
+            volume,
+            volume_out,
+            "-ribbon-constrained",
+            white_surf,
+            pial_surf,
+        ]
+        if greedy == True:
+            cmd += ["-greedy"]
+        subprocess.run(cmd, check=True)
+    return volume_out
+
+
 def sample_surf_hcp(
     volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
 ):
