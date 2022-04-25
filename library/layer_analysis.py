@@ -127,7 +127,7 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
     """
     # TODO: not working correctly -> check and fix
     if analysis_dir is None:
-        analysis_dir = os.path.join(ciftify_dir, "T1w", "fsaverage_LR32k")
+        analysis_dir = os.path.join(ciftify_dir, "T1w", "fsaverage_LR164k")
     ciftify_subject = os.path.basename(os.path.normpath(ciftify_dir))
     transform_0_lin = fs_to_func_reg[1]
     transform_1_inversewarp = fs_to_func_reg[3]
@@ -138,8 +138,8 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
             surf = os.path.join(
                 ciftify_dir,
                 "T1w",
-                "fsaverage_LR32k",
-                ciftify_subject + "." + hemi + "." + surf_type + ".32k_fs_LR.surf.gii",
+                "fsaverage_LR164k",
+                ciftify_subject + "." + hemi + "." + surf_type + ".164k_fs_LR.surf.gii",
             )
             surf_trans = os.path.join(
                 analysis_dir,
@@ -148,7 +148,7 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
                 + hemi
                 + "."
                 + surf_type
-                + ".32k_fs_LR_func.surf.gii",
+                + ".164k_fs_LR_func.surf.gii",
             )
             out_file = surftransform_gii(
                 surf,
@@ -306,20 +306,20 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
     mid_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".midthickness.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".midthickness.164k_fs_LR.surf.gii",
     )
     white_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".white.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".white.164k_fs_LR.surf.gii",
     )
     pial_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".pial.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".pial.164k_fs_LR.surf.gii",
     )
     volume = os.path.join(ciftify_dir, "T1w", "T1w.nii.gz")
     volume_out = os.path.join(analysis_dir, out_basename + "_labels_" + hemi + ".nii")
@@ -938,8 +938,8 @@ def get_md_roi(
     """Returns a multiple-demand network ROI (Moataz et al. 2020) transformed to functional space"""
     if md_labels == None:
         md_labels = {
-            "L": "/data/pt_02389/RL_analysis/ROIs/HCP_Glasser/Moataz/MD_L_0.2thresh.label.gii",
-            "R": "/data/pt_02389/RL_analysis/ROIs/HCP_Glasser/Moataz/MD_R_0.2thresh.label.gii",
+            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/MD_L_0.2thresh.label.gii",
+            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/MD_R_0.2thresh.label.gii",
         }
     out_basename = "md"
     roi = get_fs_LR_atlas_roi(
@@ -965,8 +965,8 @@ def get_glasser_roi(
     """Returns a HCP MMP 1.0 atlas ROI (Glasser et al. 2016) transformed to functional space"""
     if glasser_labels == None:
         glasser_labels = {
-            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.32k_fs_LR.label.gii",
-            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.32k_fs_LR.label.gii",
+            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.164k_fs_LR.label.gii",
+            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.164k_fs_LR.label.gii",
         }
     out_basename = "glasser"
     roi = get_fs_LR_atlas_roi(
