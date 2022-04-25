@@ -218,6 +218,8 @@ def calc_segmentation_from_both_hemi_surfs(lh_surf_pial_file,lh_surf_white_file,
                                            seg_ribbon_fname,
                                            volume_file,upsample_factor=None,gm_ribbon=None,n_jobs=4):
     volume = nib.load(volume_file)
+    if type(gm_ribbon) == str:
+        gm_ribbon = nib.load(gm_ribbon)
     if type(gm_ribbon) in (nib.nifti1.Nifti1Image,nib.nifti2.Nifti2Image):
         gm_ribbon = gm_ribbon.get_fdata()
     
