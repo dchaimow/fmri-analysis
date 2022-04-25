@@ -1796,7 +1796,7 @@ def plot_finn_tcrses(
 #     fig.suptitle(modality.upper(), weight='bold')
 
 
-def finn_trial_averaging(run_type, analysis_dir, force=False):
+def finn_trial_averaging(run_type, analysis_dir, out_dir=None, force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1805,6 +1805,10 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         os.path.join(analysis_dir, f"func_{run_type}_notnulled_tshift.nii")
     ]
     in_files_vaso = [os.path.join(analysis_dir, f"func_{run_type}_vaso.nii")]
+
+    if out_dir is None:
+        out_dir = analysis_dir
+        
     stim_times_runs = [
         calc_stim_times(
             onset_delay=8, trial_duration=trial_duration, trial_order=trial_order
@@ -1820,6 +1824,7 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         trial_duration,
         out_files_basename="trialavg1_bold_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1833,6 +1838,7 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         trial_duration,
         out_files_basename="trialavg1_vaso_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1846,7 +1852,7 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
 
 
-def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=False):
+def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=None, force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1870,6 +1876,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
         out_files_basename="trialavg2_nulled_" + run_type,
         polort=5,
         force=force,
+        cwd=out_dir
     )
 
     (
@@ -1883,6 +1890,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
         out_files_basename="trialavg2_notnulled_" + run_type,
         polort=5,
         onset_shift=TR1,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1926,7 +1934,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
     )
 
 
-def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=False):
+def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, out_dir=None,force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1948,6 +1956,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
         trial_duration,
         out_files_basename="trialavg3_bold_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1961,6 +1970,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
         trial_duration,
         out_files_basename="trialavg3_vaso_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1975,7 +1985,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
 
 
 def finn_trial_averaging_on_boldcorrect_finn_baselining(
-    run_type, analysis_dir, force=False
+        run_type, analysis_dir, out_dir=None, force=False
 ):
     trial_duration = 32
     trial_order = paradigm(run_type)
@@ -2005,6 +2015,7 @@ def finn_trial_averaging_on_boldcorrect_finn_baselining(
         out_files_basename="trialavg4_bold_" + run_type,
         polort=0,  # no detrending, just averaging
         onset_shift=tr,  # start average 1TR before stim onset
+        cwd=out_dir,
         force=force,
     )
 
@@ -2019,6 +2030,7 @@ def finn_trial_averaging_on_boldcorrect_finn_baselining(
         out_files_basename="trialavg4_vaso_" + run_type,
         polort=0,  # no detrending, just averaging
         onset_shift=tr,  # start average 1TR before stim onset
+        cwd=out_dir,
         force=force,
     )
 
