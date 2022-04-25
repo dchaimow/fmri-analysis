@@ -745,8 +745,13 @@ def sample_layer_to_fs_LR(
         # 1. generate boundary surfaces or compute layer mask
         if depth_file:
             depth_surfs = [white_surf, pial_surf]
-            layer_roi = math_img(f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file)
-            mask = roi_and((mask,layer_roi))
+            layer_roi = math_img(
+                f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file
+            )
+            if mask is None:
+                mask = layer_roi
+            else:
+                mask = roi_and((mask, layer_roi))
         else:
             depth_surfs = [os.path.join(tmpdirname, f'depth{i}.surf.gii') for i in [0,1]]
             cmds_depth_surf = [
@@ -763,8 +768,19 @@ def sample_layer_to_fs_LR(
             subprocess.run(cmds_depth_surf[1], check=True)
 
         # 2. sample
-        data_native_surf, mid_surf = sample_surf_hcp(volume_file, depth_surfs[0], depth_surfs[1], mid_surf,
-                                                     outfile=data_native_surf, mask_file=mask)
+        if isinstance(mask, nib.nifti1.Nifti1Image):
+            nib.save(mask, mask_file)
+            mask = mask_file
+        print(nib.load(mask_file).affine)
+        print(nib.load(volume_file).affine)
+        data_native_surf, mid_surf = sample_surf_hcp(
+            volume_file,
+            depth_surfs[0],
+            depth_surfs[1],
+            mid_surf,
+            outfile=data_native_surf,
+            mask_file=mask,
+        )
         # 3. resample to fs_LR
         output_file = transform_data_native_surf_to_fs_LR(data_native_surf, output_file, mid_surf, hemi, ciftify_dir)
 
