@@ -10,8 +10,18 @@ def load_fs_surf_in_scanner_space(surf_file):
     surf = load_fs_surf_in_grid(surf_file,np.eye(4))
     return surf
 
-def load_fs_surf_in_grid(surf_file,grid_to_scanner):
-    coords, faces, volume_info = nib.freesurfer.read_geometry(surf_file,read_metadata=True)
+
+def load_fs_surf_in_grid(surf_file, grid_to_scanner):
+    fs_to_scanner = np.eye(4)
+    if surf_file[-4:] == ".gii":
+        surf_gii = nib.load(surf_file)
+        coords = surf_gii.agg_data("NIFTI_INTENT_POINTSET")
+        faces = surf_gii.agg_data("NIFTI_INTENT_TRIANGLE")
+    else:
+        coords, faces, volume_info = nib.freesurfer.read_geometry(
+            surf_file, read_metadata=True
+        )
+        fs_to_scanner[:3, 3] = volume_info["cras"]
     surf = dict()
     surf['nVertices'] = coords.shape[0]
     surf['nTris'] = faces.shape[0]
