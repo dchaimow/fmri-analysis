@@ -1771,11 +1771,11 @@ def get_labels_data_layers_masked(
     pass
 
 
-import matplotlib.pyplot as plt
-import nibabel as nib
-import nilearn.plotting as plotting
-import numpy as np
-import hcp_utils as hcp
+# import matplotlib.pyplot as plt
+# import nibabel as nib
+# import nilearn.plotting as plotting
+# import numpy as np
+# import hcp_utils as hcp
 
 
 def plot_on_mmhcp_surface(Xp):
