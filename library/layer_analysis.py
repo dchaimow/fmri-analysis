@@ -651,7 +651,22 @@ def sample_surf_hcp(
         subprocess.run(cmd_fill_in_holes, check=True)
         return outfile
 
-def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir):
+
+def smooth_surfmetric_hcp(metric_in,metric_out,mid_surf,fwhm):
+    subprocess.run(["wb_command",
+                    "-metric-smoothing",
+                    mid_surf,
+                    metric_in,
+                    str(fwhm),
+                    metric_out,
+                    "-fwhm",
+                    "-fix-zeros"],
+                   check=True)
+    return metric_out
+    
+def transform_data_native_surf_to_fs_LR(
+    data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir
+):
     # find names (subject) of native anf fs_LR spheres
     native_sphere = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
                                            f"*.{hemi}.sphere.MSMSulc.native.surf.gii"))[0]
