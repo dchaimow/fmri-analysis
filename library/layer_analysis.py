@@ -665,6 +665,21 @@ def mask_metric_hcp(metric_in, metric_out, mask):
     return metric_out
 
 
+def find_clusters_hcp(metric_in, metric_out, mid_surf, threshold, min_area=0, roi=None):
+    cmd = [
+        "wb_command",
+        "-metric-find-clusters",
+        mid_surf,
+        metric_in,
+        str(threshold),
+        str(min_area),
+        metric_out,
+    ]
+    if roi:
+        cmd += ["-roi", roi]
+    subprocess.run(cmd, check=True)
+
+
 def sample_surf_hcp(
     volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
 ):
