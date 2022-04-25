@@ -581,7 +581,34 @@ def cluster_surf(
 
     return out_file
 
-def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None):
+
+def math_cifti(expr, cifti_out, **ciftis):
+    """
+    runs wb_command -cifti-math
+    **ciftis can be : cifti1 = cifti1_file.nii, cifti2 = cifti2_file.nii, ...
+    """
+    cmd = ["wb_command", "-cifti-math", expr, cifti_out] + sum(
+        [["-var", name, ciftis[name]] for name in ciftis], []
+    )
+    subprocess.run(cmd, check=True)
+    return cifti_out
+
+
+def math_metric(expr, metric_out, **metrics):
+    """
+    runs wb_command -metric math
+    **metrics can be : metric1 = metric1_file.gii, metric2 = metric2_file.gii, ...
+    """
+    cmd = ["wb_command", "-metric-math", expr, metric_out] + sum(
+        [["-var", name, metrics[name]] for name in metrics], []
+    )
+    subprocess.run(cmd, check=True)
+    return metric_out
+
+
+def sample_surf_hcp(
+    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
+):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
     - generates midthickness if file does not exists
