@@ -711,8 +711,30 @@ def transform_data_native_surf_to_fs_LR(
     return data_fs_LR_surf
 
 
-def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
-                          ciftify_dir, hemi, depth_range = [0,1], mask=None, depth_file=None):
+def calc_area_hcp(roi, mid_surf):
+    result = subprocess.run(["wb_command",
+                             "-metric-weighted-stats",
+                             roi,
+                             "-sum",
+                             "-area-surface",
+                             mid_surf],
+                            check=True,stdout=subprocess.PIPE)
+    return float(result.stdout)
+    
+    
+    
+
+def sample_layer_to_fs_LR(
+    volume_file,
+    output_file,
+    white_surf,
+    pial_surf,
+    ciftify_dir,
+    hemi,
+    depth_range=[0, 1],
+    mask=None,
+    depth_file=None,
+):
     # if depth_file provided, use it to calculate mask, otherwise generate intermediate layer surfaces
     # depth_range: 0 = wm boundary, 1 = pial surface
 
