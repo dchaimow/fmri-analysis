@@ -778,18 +778,23 @@ def sample_surf_hcp(
         return outfile
 
 
-def smooth_surfmetric_hcp(metric_in,metric_out,mid_surf,fwhm):
-    subprocess.run(["wb_command",
-                    "-metric-smoothing",
-                    mid_surf,
-                    metric_in,
-                    str(fwhm),
-                    metric_out,
-                    "-fwhm",
-                    "-fix-zeros"],
-                   check=True)
+def smooth_surfmetric_hcp(metric_in, metric_out, mid_surf, fwhm):
+    subprocess.run(
+        [
+            "wb_command",
+            "-metric-smoothing",
+            mid_surf,
+            metric_in,
+            str(fwhm),
+            metric_out,
+            "-fwhm",
+            "-fix-zeros",
+        ],
+        check=True,
+    )
     return metric_out
-    
+
+
 def transform_data_native_surf_to_fs_LR(
     data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir
 ):
@@ -856,17 +861,20 @@ def transform_data_native_surf_to_fs_LR(
 
 
 def calc_area_hcp(roi, mid_surf):
-    result = subprocess.run(["wb_command",
-                             "-metric-weighted-stats",
-                             roi,
-                             "-sum",
-                             "-area-surface",
-                             mid_surf],
-                            check=True,stdout=subprocess.PIPE)
+    result = subprocess.run(
+        [
+            "wb_command",
+            "-metric-weighted-stats",
+            roi,
+            "-sum",
+            "-area-surface",
+            mid_surf,
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
     return float(result.stdout)
-    
-    
-    
+
 
 def sample_layer_to_fs_LR(
     volume_file,
@@ -1074,23 +1082,29 @@ def get_stat_cluster_atlas(
     fwhm=5,
     threshold=2,
     force=False,
-    dont_repeat_sample_and_smooth=False
+    dont_repeat_sample_and_smooth=False,
 ):
 
     stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
     stat_file_base = fsl_remove_ext(os.path.basename(os.path.abspath(stat_file)))
-    stat_surf_smooth = os.path.join(stat_file_dir, stat_file_base + "_" + hemi + "_smooth.mgh")
-            
+    stat_surf_smooth = os.path.join(
+        stat_file_dir, stat_file_base + "_" + hemi + "_smooth.mgh"
+    )
+
     if (not dont_repeat_sample_and_smooth) or (not os.path.isfile(stat_surf_smooth)):
         # 1. take activation map and project to surface
         stat_surf = sample_surf_func_stat(
-            stat_file, white_surf_files[hemi], thickness_files[hemi], hemi=hemi, force=force
+            stat_file,
+            white_surf_files[hemi],
+            thickness_files[hemi],
+            hemi=hemi,
+            force=force,
         )
         # 2. smooth on surface
         stat_surf_smooth = smooth_surf(
             stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force
         )
-        
+
     # 3. generate activation clusters
     stat_cluster_labels = cluster_surf(
         stat_surf_smooth, fs_dir=fs_dir, hemi=hemi, threshold=threshold, force=force
@@ -1968,7 +1982,7 @@ def finn_trial_averaging(run_type, analysis_dir, out_dir=None, force=False):
 
     if out_dir is None:
         out_dir = analysis_dir
-        
+
     stim_times_runs = [
         calc_stim_times(
             onset_delay=8, trial_duration=trial_duration, trial_order=trial_order
@@ -2012,7 +2026,9 @@ def finn_trial_averaging(run_type, analysis_dir, out_dir=None, force=False):
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
 
 
-def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=None, force=False):
+def finn_trial_averaging_with_boldcorrect(
+    run_type, analysis_dir, TR1, out_dir=None, force=False
+):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -2036,7 +2052,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=N
         out_files_basename="trialavg2_nulled_" + run_type,
         polort=5,
         force=force,
-        cwd=out_dir
+        cwd=out_dir,
     )
 
     (
@@ -2065,7 +2081,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=N
             trialavg_files_nulled[1],
             trialavg_files_notnulled[1],
             trialavg_files_nulled[1].replace("nulled", "vaso"),
-            force=force
+            force=force,
         ),
     ]
 
@@ -2094,7 +2110,9 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=N
     )
 
 
-def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, out_dir=None,force=False):
+def finn_trial_averaging_on_renzo_boldcorrect(
+    run_type, analysis_dir, out_dir=None, force=False
+):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -2145,7 +2163,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, out_dir=No
 
 
 def finn_trial_averaging_on_boldcorrect_finn_baselining(
-        run_type, analysis_dir, out_dir=None, force=False
+    run_type, analysis_dir, out_dir=None, force=False
 ):
     trial_duration = 32
     trial_order = paradigm(run_type)
