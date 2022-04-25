@@ -17,6 +17,7 @@ from nipype.interfaces.fsl import SliceTimer
 from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
 import glob
 
+
 def fsl_remove_ext(filename):
     """
     Removes extension from filename using fsl's remove_ext
@@ -339,6 +340,7 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
     )
     return volume_out
 
+
 def get_fs_LR_atlas_roi(
     parcel=None,
     atlas_labels=None,
@@ -539,7 +541,13 @@ def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0, force=Fa
 
 
 def cluster_surf(
-        in_file, out_file=None, fs_dir=None, hemi=None, threshold=10, force=False,sign="pos"
+    in_file,
+    out_file=None,
+    fs_dir=None,
+    hemi=None,
+    threshold=10,
+    force=False,
+    sign="pos",
 ):
     if out_file == None:
         out_file = os.path.splitext(os.path.normpath(in_file))[0] + "_clusters.mgh"
@@ -616,22 +624,28 @@ def sample_surf_hcp(
     """
     # create midthickness
     if not os.path.isfile(mid_surf):
-            subprocess.run(["wb_command",
-                    "-surface-average",
-                    mid_surf,
-                    "-surf",pial_surf,
-                    "-surf",white_surf])
+        subprocess.run(
+            [
+                "wb_command",
+                "-surface-average",
+                mid_surf,
+                "-surf",
+                pial_surf,
+                "-surf",
+                white_surf,
+            ]
+        )
 
     cmd_volume_to_surface = [
-            "wb_command",
-            "-volume-to-surface-mapping",
-            volume_file,
-            mid_surf,
-            outfile,
-            "-ribbon-constrained",
-            white_surf,
-            pial_surf,
-        ]
+        "wb_command",
+        "-volume-to-surface-mapping",
+        volume_file,
+        mid_surf,
+        outfile,
+        "-ribbon-constrained",
+        white_surf,
+        pial_surf,
+    ]
 
     if mask_file is None:
         subprocess.run(cmd_volume_to_surface, check=True)
@@ -639,12 +653,12 @@ def sample_surf_hcp(
     else:
         cmd_volume_to_surface += ["-volume-roi", mask_file]
         cmd_fill_in_holes = [
-            'wb_command',
-            '-metric-dilate',
+            "wb_command",
+            "-metric-dilate",
             outfile,
             mid_surf,
             outfile,
-            '-nearest',
+            "-nearest",
         ]
 
         subprocess.run(cmd_volume_to_surface, check=True)
@@ -668,20 +682,38 @@ def transform_data_native_surf_to_fs_LR(
     data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir
 ):
     # find names (subject) of native anf fs_LR spheres
-    native_sphere = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
-                                           f"*.{hemi}.sphere.MSMSulc.native.surf.gii"))[0]
-    fs_LR_sphere =  glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                           f"*.{hemi}.sphere.164k_fs_LR.surf.gii"))[0]
+    native_sphere = glob.glob(
+        os.path.join(
+            ciftify_dir,
+            "MNINonLinear",
+            "Native",
+            f"*.{hemi}.sphere.MSMSulc.native.surf.gii",
+        )
+    )[0]
+    fs_LR_sphere = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.sphere.164k_fs_LR.surf.gii"
+        )
+    )[0]
 
     # find name of fs_LR midthickness (for area correction)
-    fs_LR_mid_surf = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                            f"*.{hemi}.midthickness.164k_fs_LR.surf.gii"))[0]
+    fs_LR_mid_surf = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.midthickness.164k_fs_LR.surf.gii"
+        )
+    )[0]
 
     # find names of surface rois to exclude medial wall
-    native_surf_roi = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
-                                            f"*.{hemi}.roi.native.shape.gii"))[0]
-    fs_LR_surf_roi = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                            f"*.{hemi}.atlasroi.164k_fs_LR.shape.gii"))[0]
+    native_surf_roi = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", "Native", f"*.{hemi}.roi.native.shape.gii"
+        )
+    )[0]
+    fs_LR_surf_roi = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.atlasroi.164k_fs_LR.shape.gii"
+        )
+    )[0]
 
     cmd1 = [
         "wb_command",
@@ -689,13 +721,13 @@ def transform_data_native_surf_to_fs_LR(
         data_native_surf,
         native_sphere,
         fs_LR_sphere,
-        'ADAP_BARY_AREA',
+        "ADAP_BARY_AREA",
         data_fs_LR_surf,
-        '-area-surfs',
+        "-area-surfs",
         native_mid_surf,
         fs_LR_mid_surf,
-        '-current-roi',
-        native_surf_roi
+        "-current-roi",
+        native_surf_roi,
     ]
 
     cmd2 = [
@@ -703,7 +735,7 @@ def transform_data_native_surf_to_fs_LR(
         "-metric-mask",
         data_fs_LR_surf,
         fs_LR_surf_roi,
-        data_fs_LR_surf
+        data_fs_LR_surf,
     ]
 
     subprocess.run(cmd1, check=True)
@@ -739,11 +771,13 @@ def sample_layer_to_fs_LR(
     # depth_range: 0 = wm boundary, 1 = pial surface
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        mid_surf = os.path.join(tmpdirname, 'mid.surf.gii')
-        data_native_surf = os.path.join(tmpdirname, 'data_native_surf.func.gii')
+        mid_surf = os.path.join(tmpdirname, "mid.surf.gii")
+        data_native_surf = os.path.join(tmpdirname, "data_native_surf.func.gii")
+        mask_file = os.path.join(tmpdirname, "mask.nii")
 
         # 1. generate boundary surfaces or compute layer mask
         if depth_file:
+            print(depth_file.affine)
             depth_surfs = [white_surf, pial_surf]
             layer_roi = math_img(
                 f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file
@@ -753,7 +787,9 @@ def sample_layer_to_fs_LR(
             else:
                 mask = roi_and((mask, layer_roi))
         else:
-            depth_surfs = [os.path.join(tmpdirname, f'depth{i}.surf.gii') for i in [0,1]]
+            depth_surfs = [
+                os.path.join(tmpdirname, f"depth{i}.surf.gii") for i in [0, 1]
+            ]
             cmds_depth_surf = [
                 [
                     "wb_command",
@@ -761,8 +797,10 @@ def sample_layer_to_fs_LR(
                     white_surf,
                     pial_surf,
                     str(depth_range[i]),
-                    depth_surfs[i]
-                ] for i in [0,1]]
+                    depth_surfs[i],
+                ]
+                for i in [0, 1]
+            ]
 
             subprocess.run(cmds_depth_surf[0], check=True)
             subprocess.run(cmds_depth_surf[1], check=True)
@@ -782,7 +820,9 @@ def sample_layer_to_fs_LR(
             mask_file=mask,
         )
         # 3. resample to fs_LR
-        output_file = transform_data_native_surf_to_fs_LR(data_native_surf, output_file, mid_surf, hemi, ciftify_dir)
+        output_file = transform_data_native_surf_to_fs_LR(
+            data_native_surf, output_file, mid_surf, hemi, ciftify_dir
+        )
 
     return output_file
 
@@ -922,15 +962,23 @@ def get_stat_cluster_atlas(
     fwhm=5,
     threshold=2,
     force=False,
+    dont_repeat_sample_and_smooth=False
 ):
-    # 1. take activation map and project to surface
-    stat_surf = sample_surf_func_stat(
-        stat_file, white_surf_files[hemi], thickness_files[hemi], hemi=hemi, force=force
-    )
-    # 2. smooth on surface
-    stat_surf_smooth = smooth_surf(
-        stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force
-    )
+
+    stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
+    stat_file_base = fsl_remove_ext(os.path.basename(os.path.abspath(stat_file)))
+    stat_surf_smooth = os.path.join(stat_file_dir, stat_file_base + "_" + hemi + "_smooth.mgh")
+            
+    if (not dont_repeat_sample_and_smooth) or (not os.path.isfile(stat_surf_smooth)):
+        # 1. take activation map and project to surface
+        stat_surf = sample_surf_func_stat(
+            stat_file, white_surf_files[hemi], thickness_files[hemi], hemi=hemi, force=force
+        )
+        # 2. smooth on surface
+        stat_surf_smooth = smooth_surf(
+            stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force
+        )
+        
     # 3. generate activation clusters
     stat_cluster_labels = cluster_surf(
         stat_surf_smooth, fs_dir=fs_dir, hemi=hemi, threshold=threshold, force=force
@@ -1905,7 +1953,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, out_dir=N
             trialavg_files_nulled[1],
             trialavg_files_notnulled[1],
             trialavg_files_nulled[1].replace("nulled", "vaso"),
-            force=force,
+            force=force
         ),
     ]
 
