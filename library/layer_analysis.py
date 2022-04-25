@@ -725,7 +725,7 @@ def surf_to_vol_hcp(
 
 
 def sample_surf_hcp(
-    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
+    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None, roi_out=None
 ):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
@@ -756,6 +756,8 @@ def sample_surf_hcp(
         white_surf,
         pial_surf,
     ]
+    if roi_out is not None:
+        cmd_volume_to_surface += ["-bad-vertices-out", roi_out]
 
     if mask_file is None:
         subprocess.run(cmd_volume_to_surface, check=True)
