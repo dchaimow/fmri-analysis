@@ -8,6 +8,7 @@ from shutil import rmtree, copy2
 
 import numpy as np
 import pandas as pd
+import nibabel as nib
 from nilearn._utils import check_niimg
 from nilearn.image import math_img, mean_img, index_img
 from nilearn.masking import apply_mask, intersect_masks
