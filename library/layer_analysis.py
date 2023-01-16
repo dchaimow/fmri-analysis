@@ -2028,7 +2028,62 @@ def paradigm(run_type):
     return trial_order
 
 
+def paradigm_events(run_type):
+    """
+    generate event data frame for Finn et al. 2019 paradigm
+    """
+    trial_order = paradigm(run_type)
+
+    trial_duration = 32
+    start_blank_period = 8
+    
+    condition_list = [None, None, 'rem', 'alpha', 'nogo', 'go']
+    event_list = ['letterString', 'fix1', 'cue', 'fixDelay', 'probe', 'ITI']
+    event_durations = [2.5, 1.5, 1, 9, 2, 16]
+    event_trial_times = [0, 2.5, 4, 5, 14, 16]
+    
+    n_trials = len(trial_order)
+    n_events = len(event_list)
+
+    events_trial_number = []
+    events_trial_condition = []
+    events_name = []
+    events_onset = []
+    events_duration = []
+    
+    for trial_number in range(n_trials):
+        events_trial_number += [trial_number] * n_events
+        events_trial_condition += [condition_list[trial_order[trial_number]]] * n_events
+        for event_name, event_trial_time, event_duration in zip(
+                event_list, event_trial_times, event_durations):
+            events_name.append(event_name)
+            events_onset.append(
+                event_trial_time + start_blank_period + trial_number * trial_duration)
+            events_duration.append(event_duration)
+
+    events = pd.DataFrame({'trial_number': events_trial_number,
+                           'trial_condition': events_trial_condition,
+                           'event': events_name,
+                           'onset': events_onset,
+                           'duration': events_duration})
+    return events
+
+def convert_events_to_nilearn(events):
+    nl_events = pd.DataFrame()
+    nl_events['onset'] = events['onset']
+    nl_events['trial_type'] = events['event']
+    nl_events['duration'] = events['duration']
+    return nl_events
+
+
+def extract_events(events, event_names):
+    return events.query("event == @event_names").reset_index(drop=True)
+        
+    
+
 ### TODO or obsolete:
+
+
 
 
 def preprocess_funcloc(data):
