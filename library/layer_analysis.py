@@ -881,7 +881,9 @@ def sample_layer_to_fs_LR(
 
         # 1. generate boundary surfaces or compute layer mask
         if depth_file:
-            print(depth_file.affine)
+            if type(depth_file) == str:
+                depth_file = nib.load(depth_file)
+            # print(depth_file.affine)
             depth_surfs = [white_surf, pial_surf]
             layer_roi = math_img(
                 f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file
@@ -913,8 +915,9 @@ def sample_layer_to_fs_LR(
         if isinstance(mask, nib.nifti1.Nifti1Image):
             nib.save(mask, mask_file)
             mask = mask_file
-        print(nib.load(mask_file).affine)
-        print(nib.load(volume_file).affine)
+        # print(nib.load(mask_file).affine)
+        # print(nib.load(volume_file).affine)
+        # print(depth_surfs)
         data_native_surf, mid_surf = sample_surf_hcp(
             volume_file,
             depth_surfs[0],
