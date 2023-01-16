@@ -7,6 +7,7 @@ import nibabel as nib
 import numpy as np
 import os
 import shutil
+import subprocess
 
 spm_path = '/data/pt_02389/Software/spm12'
 matlab.MatlabCommand.set_default_paths(spm_path)
@@ -95,8 +96,15 @@ def cat12_seg(in_file):
     else:
         return os.path.join(cwd,'p1' + in_file_basename), os.path.join(cwd,'p2' + in_file_basename)
               
-def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None):
-
+def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None, gdc_coeff_file=None):
+    # run gdc
+    if gdc_coeff_file is not None:
+        for infile in [inv2_file, uni_file]:
+            subprocess.run(['run_gdc.sh', infile,  gdc_coeff_file])
+            
+        inv2_file = inv2_file.replace('.nii', '_gdc.nii')
+        uni_file = uni_file.replace('.nii', '_gdc.nii')
+        
     # mprageize
     cwd = os.path.dirname(os.path.abspath(uni_file))
     uni_basename = os.path.basename(os.path.abspath(uni_file))
