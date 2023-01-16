@@ -1256,6 +1256,7 @@ def average_trials_3ddeconvolve(
     onset_shift=0,
     cwd=None,
     force=None,
+    IM=False
 ):
     if cwd == None:
         cwd = os.path.dirname(os.path.normpath(in_files[0]))
@@ -1297,22 +1298,47 @@ def average_trials_3ddeconvolve(
         stim_times.append((i_condition, stim_file, f"TENT({a},{b},{n})"))
         stim_label.append((i_condition, str(condition)))
 
-    deconvolve = Deconvolve()
-    deconvolve.inputs.in_files = in_files
-    deconvolve.inputs.stim_times = stim_times
-    deconvolve.inputs.stim_label = stim_label
-    deconvolve.inputs.polort = polort
-    deconvolve.inputs.local_times = True
-    deconvolve.inputs.fout = True
-    deconvolve.inputs.cbucket = os.path.join(
-        cwd, out_files_basename + "_cbucket.nii.gz"
-    )
-    deconvolve.inputs.args = "-overwrite"
-    deconvolve.inputs.stim_times_subtract = onset_shift
-    result = deconvolve.run(cwd=cwd)
+    deconvolve_cmd = ["3dDeconvolve"]
+    deconvolve_cmd += ["-input"] + in_files
+    deconvolve_cmd += ["-num_stimts", str(n_conditions)]
+    deconvolve_cmd += ["-polort", str(polort)]
+    deconvolve_cmd += ["-local_times"]
+    for stim_times_entry, stim_label_entry in zip(stim_times, stim_label):
+        i_condition_str = str(stim_times_entry[0])
+        condition = stim_label_entry[1]
+        stim_times_file = stim_times_entry[1]
+        stim_model = stim_times_entry[2]
+
+        if IM:
+            deconvolve_cmd += ["-stim_times_IM", i_condition_str, stim_times_file, stim_model]
+        else:
+            deconvolve_cmd += ["-stim_times", i_condition_str, stim_times_file, stim_model]
+        deconvolve_cmd += ["-stim_label", i_condition_str, condition]
+        deconvolve_cmd += [
+            "-sresp",
+            i_condition_str,
+            os.path.join(
+                cwd, out_files_basename + f"_serror_condition_{condition}.nii"
+            ),
+        ]
+    deconvolve_cmd += ["-stim_times_subtract", str(onset_shift)]
+    deconvolve_cmd += [
+        "-cbucket",
+        os.path.join(cwd, out_files_basename + "_cbucket.nii.gz"),
+    ]
+    deconvolve_cmd += ["-bucket", os.path.join(cwd, "Decon.nii")]
+    deconvolve_cmd += ["-fout"]
+    deconvolve_cmd += ["-errts", os.path.join(cwd, out_files_basename + "_errts.nii")]
+    deconvolve_cmd += ["-overwrite"]
+
+    print(deconvolve_cmd)
+    subprocess.run(deconvolve_cmd, check=True)
+    result_out = os.path.join(cwd, "Decon.nii")
+    result_cout = os.path.join(cwd, out_files_basename + "_cbucket.nii.gz")
+
     # extract fstat
     result_fstat = TCatSubBrick(
-        in_files=[(result.outputs.out_file, f"'[0]'")],
+        in_files=[(result_out, f"'[0]'")],
         out_file=os.path.join(cwd, out_files_basename + "_fstat.nii"),
         args="-overwrite",
     ).run()
@@ -1320,7 +1346,7 @@ def average_trials_3ddeconvolve(
     baseline_idcs = 0 + (polort + 1) * np.arange(n_files)
     baseline_idcs_str = ",".join([str(i) for i in baseline_idcs])
     result_baseline_vols = TCatSubBrick(
-        in_files=[(result.outputs.cbucket, f"'[{baseline_idcs_str}]'")],
+        in_files=[(result_cout, f"'[{baseline_idcs_str}]'")],
         out_file=os.path.join(cwd, out_files_basename + "_baseline_runs.nii"),
         args="-overwrite",
     ).run()
@@ -1334,7 +1360,7 @@ def average_trials_3ddeconvolve(
         result_condition_diffresponse_timecourse = TCatSubBrick(
             in_files=[
                 (
-                    result.outputs.cbucket,
+                    result_cout,
                     f"'[{int((polort + 1) * n_files + i * n)}..{int((polort + 1) * n_files + (i + 1) * n - 1)}]'",
                 )
             ],
