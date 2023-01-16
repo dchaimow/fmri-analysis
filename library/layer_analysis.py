@@ -6,6 +6,7 @@ from collections import defaultdict
 from itertools import zip_longest
 from shutil import rmtree, copy2
 
+import numpy as np
 import pandas as pd
 from nilearn._utils import check_niimg
 from nilearn.image import math_img, mean_img, index_img
