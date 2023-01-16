@@ -18,7 +18,9 @@ import subprocess
 import nibabel as nib
 import numpy as np
 import shutil
-import dsargparse
+
+# import dsargparse
+import argparse
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -42,6 +44,7 @@ def find_roi(
     cluster_roi=True,
     fwhm=3,
     cwd=None,
+    keep_tmp=False,
 ):
     """Hello.
 
@@ -116,7 +119,7 @@ def find_roi(
                     )
             else:
                 analysis.math_metric(
-                    f"(x > {threshold}) && roi",
+                    f"(x > {threshold} ) && roi",
                     metric_out=roi_surf_file,
                     x=surf_stat_file,
                     roi=anat_region,
@@ -131,7 +134,10 @@ def find_roi(
         # 1. sample stat_file to surface, use wb_command (surface neeeded as input)
         mid_surf = os.path.join(tmpdirname, "mid.surf.gii")
         surf_stat_file = os.path.join(tmpdirname, "stat.func.gii")
+        surf_stat_file_nosm = os.path.join(tmpdirname, "stat_nosm.func.gii")
+        surf_stat_file_sm = os.path.join(tmpdirname, "stat_sm.func.gii")
         no_coverage_file = os.path.join(tmpdirname, "no_coverage.shape.gii")
+
         analysis.sample_surf_hcp(
             volume_file=stat_file,
             white_surf=white_surf,
@@ -144,9 +150,11 @@ def find_roi(
 
         # 2. if cluster: smooth surface
         if cluster_roi:
+            shutil.copyfile(surf_stat_file, surf_stat_file_nosm)
             analysis.smooth_surfmetric_hcp(
                 surf_stat_file, surf_stat_file, mid_surf, fwhm
             )
+            shutil.copyfile(surf_stat_file, surf_stat_file_sm)
 
         # 4. Define optimization function
         if target_type == "threshold":
@@ -178,10 +186,20 @@ def find_roi(
                 raise NotImplementedError("voxel target not implemented yet!")
 
             max_stat = analysis.stats_metric_hcp(surf_stat_file, "MAX", anat_region)
-            threshold = brentq(f, 0, max_stat)
+            if np.sign(f(0)) == np.sign(f(max_stat)):
+                tmp_roi = os.path.join(tmpdirname, f"roi.empty.shape.gii")
+                analysis.math_metric(
+                    "0",
+                    tmp_roi,
+                    img=surf_stat_file,
+                )
+            else:
+                threshold = brentq(f, 0, max_stat)
 
-            # 4. get final roi (on surface)
-            tmp_roi = calc_roi(threshold)
+                # 4. get final roi (on surface)
+                tmp_roi = calc_roi(threshold)
+
+        shutil.copyfile(tmp_roi, os.path.join(tmpdirname, "roi.final.shape.gii"))
 
         # sample surface roi to volume:
         analysis.surf_to_vol_hcp(
@@ -194,6 +212,12 @@ def find_roi(
             greedy=False,
             is_roi=True,
         )
+        if keep_tmp:
+            subprocess.run(
+                "cp -r " + os.path.join(tmpdirname, "*") + " " + cwd,
+                shell=True,
+                check=True,
+            )
     return out_file
 
 
@@ -298,12 +322,13 @@ class FindROI(BaseInterface):
 
 
 if __name__ == "__main__":
+    pass
     # process command line arguments and either call interface or implemented function
-    parser_description = "find roi"
-    parser = dsargparse.ArgumentParser(main=find_roi)
-    parser.add_argument("stat_file")
-    parser.add_argument("target")
+    # parser_description = "find roi"
+    # parser = dsargparse.ArgumentParser(main=find_roi)
+    # parser.add_argument("stat_file")
+    # parser.add_argument("target")
 
-    parser.parse_and_run()
+    # parser.parse_and_run()
 
     # FindRoi(stat_file=args.stat_file).run()
