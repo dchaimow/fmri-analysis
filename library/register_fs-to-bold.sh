@@ -19,6 +19,10 @@ n4bold_file=$(remove_ext ${bold_file})_n4.nii
 N4BiasFieldCorrection -i ${bold_file} -o ${n4bold_file}
 bold_file=${n4bold_file}
 
+bold_brain_file=$(remove_ext ${bold_file})_brain.nii
+3dAutomask -apply_prefix ${bold_brain_file} ${bold_file}
+bold_file=${bold_brain_file}
+
 antsRegistration \
     --verbose 1 \
     --dimensionality 3 \
