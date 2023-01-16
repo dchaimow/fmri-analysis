@@ -1,4 +1,3 @@
-# prelimninary code potentially to be used for cat12 segmentation interface (currently not functional)
 function cat12_seg(filename,spm_path)
     try
         if exist('spm_path','var')
