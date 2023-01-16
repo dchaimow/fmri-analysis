@@ -740,8 +740,8 @@ def sample_surf_hcp(
         pial_surf,
     ]
     if roi_out is not None:
-        cmd_volume_to_surface += ["-bad-vertices-out",roi_out]
-    
+        cmd_volume_to_surface += ["-bad-vertices-out", roi_out]
+
     if mask_file is None:
         subprocess.run(cmd_volume_to_surface, check=True)
         return outfile, mid_surf
@@ -752,13 +752,14 @@ def sample_surf_hcp(
             "-metric-dilate",
             outfile,
             mid_surf,
+            str(0),
             outfile,
             "-nearest",
         ]
 
         subprocess.run(cmd_volume_to_surface, check=True)
         subprocess.run(cmd_fill_in_holes, check=True)
-        return outfile
+        return outfile, mid_surf
 
 
 def smooth_surfmetric_hcp(metric_in, metric_out, mid_surf, fwhm):
