@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 from nilearn._utils import check_niimg
-from nilearn.image import math_img, mean_img, index_img
+from nilearn.image import math_img, mean_img, index_img, get_data
 from nilearn.masking import apply_mask, intersect_masks
 from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Calc, TStat
 from nipype.interfaces.ants import ApplyTransformsToPoints
@@ -1687,6 +1687,9 @@ def average_roi(data, roi):
 
 def sample_depths(data, roi, depths):
     # assume voxel matrix of data, roi correspond to each other
+    values = np.unique(get_data(roi))
+    if len(values) == 1 and values[0] == 0:
+        return None, None
     data_reset = reset_affine(data)
     roi_reset = reset_affine(roi)
     depths_reset = reset_affine(depths)
