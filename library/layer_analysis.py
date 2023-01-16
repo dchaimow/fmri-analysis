@@ -128,7 +128,7 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
     """
     # TODO: not working correctly -> check and fix
     if analysis_dir is None:
-        analysis_dir = os.path.join(ciftify_dir, "T1w", "fsaverage_LR32k")
+        analysis_dir = os.path.join(ciftify_dir, "T1w", "fsaverage_LR164k")
     ciftify_subject = os.path.basename(os.path.normpath(ciftify_dir))
     transform_0_lin = fs_to_func_reg[1]
     transform_1_inversewarp = fs_to_func_reg[3]
@@ -139,8 +139,8 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
             surf = os.path.join(
                 ciftify_dir,
                 "T1w",
-                "fsaverage_LR32k",
-                ciftify_subject + "." + hemi + "." + surf_type + ".32k_fs_LR.surf.gii",
+                "fsaverage_LR164k",
+                ciftify_subject + "." + hemi + "." + surf_type + ".164k_fs_LR.surf.gii",
             )
             surf_trans = os.path.join(
                 analysis_dir,
@@ -149,7 +149,7 @@ def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
                 + hemi
                 + "."
                 + surf_type
-                + ".32k_fs_LR_func.surf.gii",
+                + ".164k_fs_LR_func.surf.gii",
             )
             out_file = surftransform_gii(
                 surf,
@@ -290,6 +290,36 @@ def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
 
 ### ROI related functions
 
+def generate_atlas_region_hcp(atlas_file, out_file, label_list):
+    """
+    generate a surface roi from a list of atlas labels
+    """
+    atlas = nib.load(atlas_file)
+    roi_data = np.isin(atlas.darrays[0].data.copy(),label_list).astype(np.int32)
+    roi_gii = nib.GiftiImage(header=atlas.header,
+                             darrays = [nib.gifti.GiftiDataArray(data=roi_data,
+                                                                 intent=1011)],
+                             meta=atlas.meta)
+    roi_gii.to_filename(out_file)
+    return out_file
+
+def index_roi_surflabel_hcp(label_file,roi_out,label):
+    if type(label)==str:
+        subprocess.run(['wb_command',
+                        '-gifti-label-to-roi',
+                        label_file,
+                        roi_out,
+                        '-name',
+                        label],check=True)
+    else:
+        subprocess.run(['wb_command',
+                        '-gifti-label-to-roi',
+                        label_file,
+                        roi_out,
+                        '-key',
+                        str(label)],check=True)
+        return roi_out
+                    
 
 def index_roi(roi, idx):
     """
@@ -307,20 +337,20 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
     mid_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".midthickness.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".midthickness.164k_fs_LR.surf.gii",
     )
     white_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".white.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".white.164k_fs_LR.surf.gii",
     )
     pial_surf = os.path.join(
         ciftify_dir,
         "T1w",
-        "fsaverage_LR32k",
-        ciftify_subject + "." + hemi + ".pial.32k_fs_LR.surf.gii",
+        "fsaverage_LR164k",
+        ciftify_subject + "." + hemi + ".pial.164k_fs_LR.surf.gii",
     )
     volume = os.path.join(ciftify_dir, "T1w", "T1w.nii.gz")
     volume_out = os.path.join(analysis_dir, out_basename + "_labels_" + hemi + ".nii")
@@ -590,8 +620,93 @@ def cluster_surf(
     return out_file
 
 
+def math_cifti(expr, cifti_out, **ciftis):
+    """
+    runs wb_command -cifti-math
+    **ciftis can be : cifti1 = cifti1_file.nii, cifti2 = cifti2_file.nii, ...
+    """
+    cmd = ["wb_command", "-cifti-math", expr, cifti_out] + sum(
+        [["-var", name, ciftis[name]] for name in ciftis], []
+    )
+    subprocess.run(cmd, check=True)
+    return cifti_out
+
+
+def math_metric(expr, metric_out, **metrics):
+    """
+    runs wb_command -metric math
+    **metrics can be : metric1 = metric1_file.gii, metric2 = metric2_file.gii, ...
+    """
+    cmd = ["wb_command", "-metric-math", expr, metric_out] + sum(
+        [["-var", name, metrics[name]] for name in metrics], []
+    )
+    subprocess.run(cmd, check=True,stdout=subprocess.DEVNULL)
+    return metric_out
+
+def stats_metric_hcp(metric_in, op, roi=None):
+    cmd = ["wb_command",
+           "-metric-stats",
+           metric_in,
+           "-reduce",op]
+    if roi is not None:
+        cmd += ["-roi",roi]
+    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
+    return float(result.stdout)
+
+    
+def mask_metric_hcp(metric_in, metric_out, mask):
+    subprocess.run(
+        ["wb_command", "-metric-mask", metric_in, mask, metric_out], check=True
+    )
+    return metric_out
+
+
+def find_clusters_hcp(metric_in, metric_out, mid_surf, threshold, min_area=0, roi=None):
+    cmd = [
+        "wb_command",
+        "-metric-find-clusters",
+        mid_surf,
+        metric_in,
+        str(threshold),
+        str(min_area),
+        metric_out,
+    ]
+    if roi:
+        cmd += ["-roi", roi]
+    subprocess.run(cmd, check=True)
+
+def surf_to_vol_hcp(metric_in, volume_out, volume,
+                    white_surf, pial_surf, mid_surf,greedy=False,is_roi=False):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        label_file = os.path.join(tmpdirname,'roi.label.gii')
+        subprocess.run(["wb_command",
+                        "-metric-label-import",
+                        metric_in,
+                        "",
+                        label_file,
+                        ])
+        
+        cmd = ["wb_command"]
+        if is_roi:
+            metric_in = label_file
+            cmd += ["-label-to-volume-mapping"]
+        else:
+            cmd += ["-metric-to-volume-mapping"]
+        
+        cmd += [metric_in,
+                mid_surf,
+                volume,
+                volume_out,
+                "-ribbon-constrained",
+                white_surf,
+                pial_surf]
+        if greedy==True:
+            cmd += ['-greedy']
+        subprocess.run(cmd,check=True)
+    return volume_out
+    
 def sample_surf_hcp(
-    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
+        volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None, roi_out=None
 ):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
@@ -622,12 +737,12 @@ def sample_surf_hcp(
         white_surf,
         pial_surf,
     ]
-
+    if roi_out is not None:
+        cmd_volume_to_surface += ["-bad-vertices-out",roi_out]
+    
     if mask_file is None:
-        if subprocess.run(cmd_volume_to_surface):
-            return outfile, mid_surf
-        else:
-            return None
+        subprocess.run(cmd_volume_to_surface, check=True)
+        return outfile, mid_surf
     else:
         cmd_volume_to_surface += ["-volume-roi", mask_file]
         cmd_fill_in_holes = [
@@ -638,10 +753,27 @@ def sample_surf_hcp(
             outfile,
             "-nearest",
         ]
-    if subprocess.run(cmd_volume_to_surface) and subprocess.run(cmd_fill_in_holes):
-        return outfile, mid_surf
-    else:
-        return None
+
+        subprocess.run(cmd_volume_to_surface, check=True)
+        subprocess.run(cmd_fill_in_holes, check=True)
+        return outfile
+
+
+def smooth_surfmetric_hcp(metric_in, metric_out, mid_surf, fwhm):
+    subprocess.run(
+        [
+            "wb_command",
+            "-metric-smoothing",
+            mid_surf,
+            metric_in,
+            str(fwhm),
+            metric_out,
+            "-fwhm",
+            "-fix-zeros",
+        ],
+        check=True,
+    )
+    return metric_out
 
 
 def transform_data_native_surf_to_fs_LR(
@@ -704,10 +836,25 @@ def transform_data_native_surf_to_fs_LR(
         data_fs_LR_surf,
     ]
 
-    if subprocess.run(cmd1) and subprocess.run(cmd2):
-        return data_fs_LR_surf
-    else:
-        return None
+    subprocess.run(cmd1, check=True)
+    subprocess.run(cmd2, check=True)
+    return data_fs_LR_surf
+
+
+def calc_area_hcp(roi, mid_surf):
+    result = subprocess.run(
+        [
+            "wb_command",
+            "-metric-weighted-stats",
+            roi,
+            "-sum",
+            "-area-surface",
+            mid_surf,
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    return float(result.stdout)
 
 
 def sample_layer_to_fs_LR(
@@ -727,14 +874,19 @@ def sample_layer_to_fs_LR(
     with tempfile.TemporaryDirectory() as tmpdirname:
         mid_surf = os.path.join(tmpdirname, "mid.surf.gii")
         data_native_surf = os.path.join(tmpdirname, "data_native_surf.func.gii")
+        mask_file = os.path.join(tmpdirname, "mask.nii")
 
         # 1. generate boundary surfaces or compute layer mask
         if depth_file:
+            print(depth_file.affine)
             depth_surfs = [white_surf, pial_surf]
             layer_roi = math_img(
                 f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file
             )
-            mask = roi_and((mask, layer_roi))
+            if mask is None:
+                mask = layer_roi
+            else:
+                mask = roi_and((mask, layer_roi))
         else:
             depth_surfs = [
                 os.path.join(tmpdirname, f"depth{i}.surf.gii") for i in [0, 1]
@@ -751,10 +903,15 @@ def sample_layer_to_fs_LR(
                 for i in [0, 1]
             ]
 
-            subprocess.run(cmds_depth_surf[0])
-            subprocess.run(cmds_depth_surf[1])
+            subprocess.run(cmds_depth_surf[0], check=True)
+            subprocess.run(cmds_depth_surf[1], check=True)
 
         # 2. sample
+        if isinstance(mask, nib.nifti1.Nifti1Image):
+            nib.save(mask, mask_file)
+            mask = mask_file
+        print(nib.load(mask_file).affine)
+        print(nib.load(volume_file).affine)
         data_native_surf, mid_surf = sample_surf_hcp(
             volume_file,
             depth_surfs[0],
@@ -906,15 +1063,29 @@ def get_stat_cluster_atlas(
     fwhm=5,
     threshold=2,
     force=False,
+    dont_repeat_sample_and_smooth=False,
 ):
-    # 1. take activation map and project to surface
-    stat_surf = sample_surf_func_stat(
-        stat_file, white_surf_files[hemi], thickness_files[hemi], hemi=hemi, force=force
+
+    stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
+    stat_file_base = fsl_remove_ext(os.path.basename(os.path.abspath(stat_file)))
+    stat_surf_smooth = os.path.join(
+        stat_file_dir, stat_file_base + "_" + hemi + "_smooth.mgh"
     )
-    # 2. smooth on surface
-    stat_surf_smooth = smooth_surf(
-        stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force
-    )
+
+    if (not dont_repeat_sample_and_smooth) or (not os.path.isfile(stat_surf_smooth)):
+        # 1. take activation map and project to surface
+        stat_surf = sample_surf_func_stat(
+            stat_file,
+            white_surf_files[hemi],
+            thickness_files[hemi],
+            hemi=hemi,
+            force=force,
+        )
+        # 2. smooth on surface
+        stat_surf_smooth = smooth_surf(
+            stat_surf, fs_dir=fs_dir, hemi=hemi, fwhm=fwhm, force=force
+        )
+
     # 3. generate activation clusters
     stat_cluster_labels = cluster_surf(
         stat_surf_smooth, fs_dir=fs_dir, hemi=hemi, threshold=threshold, force=force
@@ -1000,8 +1171,8 @@ def get_md_roi(
     """Returns a multiple-demand network ROI (Moataz et al. 2020) transformed to functional space"""
     if md_labels == None:
         md_labels = {
-            "L": "/data/pt_02389/RL_analysis/ROIs/HCP_Glasser/Moataz/MD_L_0.2thresh.label.gii",
-            "R": "/data/pt_02389/RL_analysis/ROIs/HCP_Glasser/Moataz/MD_R_0.2thresh.label.gii",
+            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/MD_L_0.2thresh.label.gii",
+            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/MD_R_0.2thresh.label.gii",
         }
     out_basename = "md"
     roi = get_fs_LR_atlas_roi(
@@ -1027,8 +1198,8 @@ def get_glasser_roi(
     """Returns a HCP MMP 1.0 atlas ROI (Glasser et al. 2016) transformed to functional space"""
     if glasser_labels == None:
         glasser_labels = {
-            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.32k_fs_LR.label.gii",
-            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.32k_fs_LR.label.gii",
+            "L": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.L.164k_fs_LR.label.gii",
+            "R": "/data/pt_02389/FinnReplicationPilot/ROIs/GlasserAtlas.R.164k_fs_LR.label.gii",
         }
     out_basename = "glasser"
     roi = get_fs_LR_atlas_roi(
@@ -1440,7 +1611,7 @@ def calc_layers_laynii(
         ]
         if method == "equivol":
             run_string_list.append("-equivol")
-            subprocess.run(run_string_list)
+        subprocess.run(run_string_list)
 
     return out_file
 
@@ -1595,11 +1766,11 @@ def get_labels_data_layers_masked(
     pass
 
 
-import matplotlib.pyplot as plt
-import nibabel as nib
-import nilearn.plotting as plotting
-import numpy as np
-import hcp_utils as hcp
+#import matplotlib.pyplot as plt
+#import nibabel as nib
+#import nilearn.plotting as plotting
+#import numpy as np
+#import hcp_utils as hcp
 
 
 def plot_on_mmhcp_surface(Xp):
@@ -1780,7 +1951,7 @@ def plot_finn_tcrses(
 #     fig.suptitle(modality.upper(), weight='bold')
 
 
-def finn_trial_averaging(run_type, analysis_dir, force=False):
+def finn_trial_averaging(run_type, analysis_dir, out_dir=None, force=False):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1789,6 +1960,10 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         os.path.join(analysis_dir, f"func_{run_type}_notnulled_tshift.nii")
     ]
     in_files_vaso = [os.path.join(analysis_dir, f"func_{run_type}_vaso.nii")]
+
+    if out_dir is None:
+        out_dir = analysis_dir
+
     stim_times_runs = [
         calc_stim_times(
             onset_delay=8, trial_duration=trial_duration, trial_order=trial_order
@@ -1804,6 +1979,7 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         trial_duration,
         out_files_basename="trialavg1_bold_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1817,6 +1993,7 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
         trial_duration,
         out_files_basename="trialavg1_vaso_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1830,7 +2007,9 @@ def finn_trial_averaging(run_type, analysis_dir, force=False):
     return trialavg_bold_prcchg, trialavg_vaso_prcchg, fstat_file_bold, fstat_file_vaso
 
 
-def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=False):
+def finn_trial_averaging_with_boldcorrect(
+    run_type, analysis_dir, TR1, out_dir=None, force=False
+):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1854,6 +2033,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
         out_files_basename="trialavg2_nulled_" + run_type,
         polort=5,
         force=force,
+        cwd=out_dir,
     )
 
     (
@@ -1867,6 +2047,7 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
         out_files_basename="trialavg2_notnulled_" + run_type,
         polort=5,
         onset_shift=TR1,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1910,7 +2091,9 @@ def finn_trial_averaging_with_boldcorrect(run_type, analysis_dir, TR1, force=Fal
     )
 
 
-def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=False):
+def finn_trial_averaging_on_renzo_boldcorrect(
+    run_type, analysis_dir, out_dir=None, force=False
+):
     trial_duration = 32
     trial_order = paradigm(run_type)
     trialavg = dict()
@@ -1932,6 +2115,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
         trial_duration,
         out_files_basename="trialavg3_bold_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1945,6 +2129,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
         trial_duration,
         out_files_basename="trialavg3_vaso_" + run_type,
         polort=5,
+        cwd=out_dir,
         force=force,
     )
 
@@ -1959,7 +2144,7 @@ def finn_trial_averaging_on_renzo_boldcorrect(run_type, analysis_dir, force=Fals
 
 
 def finn_trial_averaging_on_boldcorrect_finn_baselining(
-    run_type, analysis_dir, force=False
+    run_type, analysis_dir, out_dir=None, force=False
 ):
     trial_duration = 32
     trial_order = paradigm(run_type)
@@ -1989,6 +2174,7 @@ def finn_trial_averaging_on_boldcorrect_finn_baselining(
         out_files_basename="trialavg4_bold_" + run_type,
         polort=0,  # no detrending, just averaging
         onset_shift=tr,  # start average 1TR before stim onset
+        cwd=out_dir,
         force=force,
     )
 
@@ -2003,6 +2189,7 @@ def finn_trial_averaging_on_boldcorrect_finn_baselining(
         out_files_basename="trialavg4_vaso_" + run_type,
         polort=0,  # no detrending, just averaging
         onset_shift=tr,  # start average 1TR before stim onset
+        cwd=out_dir,
         force=force,
     )
 

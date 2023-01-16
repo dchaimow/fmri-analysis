@@ -33,6 +33,7 @@ LN_MP2RAGE_DNOISE -INV1 ${fBaseName}_mean_nulled.nii -INV2 ${fBaseName}_mean_nul
 # bias field correction
 spm_bias-correct.py ${fBaseName}_T1_denoised.nii
 mv m${fBaseName}_T1_denoised.nii ${fBaseName}_T1.nii
+fslcpgeom ${fBaseName}_T1_denoised.nii ${fBaseName}_T1.nii # spm appears to change the affine slightly
 #N4BiasFieldCorrection -i ${fBaseName}_T1_denoised.nii -o ${fBaseName}_T1.ni
 
 # clip 2 - clip values that exceed expected distribution of intensities
