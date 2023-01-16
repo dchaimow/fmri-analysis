@@ -5,7 +5,7 @@ import tempfile
 from collections import defaultdict
 from itertools import zip_longest
 from shutil import rmtree, copy2
-
+import nibabel as nib
 import pandas as pd
 from nilearn._utils import check_niimg
 from nilearn.image import math_img, mean_img, index_img
@@ -16,6 +16,7 @@ from nipype.interfaces.freesurfer import MRIsConvert
 from nipype.interfaces.fsl import SliceTimer
 from niworkflows.interfaces.surf import CSVToGifti, GiftiToCSV
 import glob
+
 
 def fsl_remove_ext(filename):
     """
@@ -339,6 +340,7 @@ def fs_LR_label_to_fs_volume(ciftify_dir, analysis_dir, labels, hemi, out_basena
     )
     return volume_out
 
+
 def get_fs_LR_atlas_roi(
     parcel=None,
     atlas_labels=None,
@@ -539,7 +541,13 @@ def smooth_surf(in_file, out_file=None, fs_dir=None, hemi=None, fwhm=0, force=Fa
 
 
 def cluster_surf(
-        in_file, out_file=None, fs_dir=None, hemi=None, threshold=10, force=False,sign="pos"
+    in_file,
+    out_file=None,
+    fs_dir=None,
+    hemi=None,
+    threshold=10,
+    force=False,
+    sign="pos",
 ):
     if out_file == None:
         out_file = os.path.splitext(os.path.normpath(in_file))[0] + "_clusters.mgh"
@@ -581,7 +589,10 @@ def cluster_surf(
 
     return out_file
 
-def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None):
+
+def sample_surf_hcp(
+    volume_file, white_surf, pial_surf, mid_surf, outfile, mask_file=None
+):
     """
     Samples volume to surface using arbitrary GIFTI surfaces using hcp tools (wb_command).
     - generates midthickness if file does not exists
@@ -589,22 +600,28 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
     """
     # create midthickness
     if not os.path.isfile(mid_surf):
-            subprocess.run(["wb_command",
-                    "-surface-average",
-                    mid_surf,
-                    "-surf",pial_surf,
-                    "-surf",white_surf])
+        subprocess.run(
+            [
+                "wb_command",
+                "-surface-average",
+                mid_surf,
+                "-surf",
+                pial_surf,
+                "-surf",
+                white_surf,
+            ]
+        )
 
     cmd_volume_to_surface = [
-            "wb_command",
-            "-volume-to-surface-mapping",
-            volume_file,
-            mid_surf,
-            outfile,
-            "-ribbon-constrained",
-            white_surf,
-            pial_surf,
-        ]
+        "wb_command",
+        "-volume-to-surface-mapping",
+        volume_file,
+        mid_surf,
+        outfile,
+        "-ribbon-constrained",
+        white_surf,
+        pial_surf,
+    ]
 
     if mask_file is None:
         if subprocess.run(cmd_volume_to_surface):
@@ -614,34 +631,55 @@ def sample_surf_hcp(volume_file, white_surf, pial_surf, mid_surf, outfile, mask_
     else:
         cmd_volume_to_surface += ["-volume-roi", mask_file]
         cmd_fill_in_holes = [
-            'wb_command',
-            '-metric-dilate',
+            "wb_command",
+            "-metric-dilate",
             outfile,
             mid_surf,
             outfile,
-            '-nearest',
+            "-nearest",
         ]
     if subprocess.run(cmd_volume_to_surface) and subprocess.run(cmd_fill_in_holes):
         return outfile, mid_surf
     else:
         return None
 
-def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir):
+
+def transform_data_native_surf_to_fs_LR(
+    data_native_surf, data_fs_LR_surf, native_mid_surf, hemi, ciftify_dir
+):
     # find names (subject) of native anf fs_LR spheres
-    native_sphere = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
-                                           f"*.{hemi}.sphere.MSMSulc.native.surf.gii"))[0]
-    fs_LR_sphere =  glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                           f"*.{hemi}.sphere.164k_fs_LR.surf.gii"))[0]
+    native_sphere = glob.glob(
+        os.path.join(
+            ciftify_dir,
+            "MNINonLinear",
+            "Native",
+            f"*.{hemi}.sphere.MSMSulc.native.surf.gii",
+        )
+    )[0]
+    fs_LR_sphere = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.sphere.164k_fs_LR.surf.gii"
+        )
+    )[0]
 
     # find name of fs_LR midthickness (for area correction)
-    fs_LR_mid_surf = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                            f"*.{hemi}.midthickness.164k_fs_LR.surf.gii"))[0]
+    fs_LR_mid_surf = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.midthickness.164k_fs_LR.surf.gii"
+        )
+    )[0]
 
     # find names of surface rois to exclude medial wall
-    native_surf_roi = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear', 'Native',
-                                            f"*.{hemi}.roi.native.shape.gii"))[0]
-    fs_LR_surf_roi = glob.glob(os.path.join(ciftify_dir, 'MNINonLinear',
-                                            f"*.{hemi}.atlasroi.164k_fs_LR.shape.gii"))[0]
+    native_surf_roi = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", "Native", f"*.{hemi}.roi.native.shape.gii"
+        )
+    )[0]
+    fs_LR_surf_roi = glob.glob(
+        os.path.join(
+            ciftify_dir, "MNINonLinear", f"*.{hemi}.atlasroi.164k_fs_LR.shape.gii"
+        )
+    )[0]
 
     cmd1 = [
         "wb_command",
@@ -649,13 +687,13 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
         data_native_surf,
         native_sphere,
         fs_LR_sphere,
-        'ADAP_BARY_AREA',
+        "ADAP_BARY_AREA",
         data_fs_LR_surf,
-        '-area-surfs',
+        "-area-surfs",
         native_mid_surf,
         fs_LR_mid_surf,
-        '-current-roi',
-        native_surf_roi
+        "-current-roi",
+        native_surf_roi,
     ]
 
     cmd2 = [
@@ -663,7 +701,7 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
         "-metric-mask",
         data_fs_LR_surf,
         fs_LR_surf_roi,
-        data_fs_LR_surf
+        data_fs_LR_surf,
     ]
 
     if subprocess.run(cmd1) and subprocess.run(cmd2):
@@ -671,22 +709,36 @@ def transform_data_native_surf_to_fs_LR(data_native_surf, data_fs_LR_surf, nativ
     else:
         return None
 
-def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
-                          ciftify_dir, hemi, depth_range = [0,1], mask=None, depth_file=None):
+
+def sample_layer_to_fs_LR(
+    volume_file,
+    output_file,
+    white_surf,
+    pial_surf,
+    ciftify_dir,
+    hemi,
+    depth_range=[0, 1],
+    mask=None,
+    depth_file=None,
+):
     # if depth_file provided, use it to calculate mask, otherwise generate intermediate layer surfaces
     # depth_range: 0 = wm boundary, 1 = pial surface
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        mid_surf = os.path.join(tmpdirname, 'mid.surf.gii')
-        data_native_surf = os.path.join(tmpdirname, 'data_native_surf.func.gii')
+        mid_surf = os.path.join(tmpdirname, "mid.surf.gii")
+        data_native_surf = os.path.join(tmpdirname, "data_native_surf.func.gii")
 
         # 1. generate boundary surfaces or compute layer mask
         if depth_file:
             depth_surfs = [white_surf, pial_surf]
-            layer_roi = math_img(f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file)
-            mask = roi_and((mask,layer_roi))
+            layer_roi = math_img(
+                f"(img>={depth_range[0]})& (img<={depth_range[1]})", img=depth_file
+            )
+            mask = roi_and((mask, layer_roi))
         else:
-            depth_surfs = [os.path.join(tmpdirname, f'depth{i}.surf.gii') for i in [0,1]]
+            depth_surfs = [
+                os.path.join(tmpdirname, f"depth{i}.surf.gii") for i in [0, 1]
+            ]
             cmds_depth_surf = [
                 [
                     "wb_command",
@@ -694,17 +746,27 @@ def sample_layer_to_fs_LR(volume_file, output_file, white_surf, pial_surf,
                     white_surf,
                     pial_surf,
                     str(depth_range[i]),
-                    depth_surfs[i]
-                ] for i in [0,1]]
+                    depth_surfs[i],
+                ]
+                for i in [0, 1]
+            ]
 
             subprocess.run(cmds_depth_surf[0])
             subprocess.run(cmds_depth_surf[1])
 
         # 2. sample
-        data_native_surf, mid_surf = sample_surf_hcp(volume_file, depth_surfs[0], depth_surfs[1], mid_surf,
-                                                     outfile=data_native_surf, mask_file=mask)
+        data_native_surf, mid_surf = sample_surf_hcp(
+            volume_file,
+            depth_surfs[0],
+            depth_surfs[1],
+            mid_surf,
+            outfile=data_native_surf,
+            mask_file=mask,
+        )
         # 3. resample to fs_LR
-        output_file = transform_data_native_surf_to_fs_LR(data_native_surf, output_file, mid_surf, hemi, ciftify_dir)
+        output_file = transform_data_native_surf_to_fs_LR(
+            data_native_surf, output_file, mid_surf, hemi, ciftify_dir
+        )
 
     return output_file
 
