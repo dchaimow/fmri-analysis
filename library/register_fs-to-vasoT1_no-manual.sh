@@ -38,4 +38,6 @@ antsRegistration \
     --shrink-factors 10x6x4x2x1  \
     --smoothing-sigmas 5x3x2x1x0vox  \
     -x mask.nii
+
 cp fs_to_func_Warped.nii fs_t1_in-func.nii
+fslcpgeom ${vaso_T1_file} fs_t1_in-func.nii # correct for possible small affine changes
