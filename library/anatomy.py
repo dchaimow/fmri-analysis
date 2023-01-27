@@ -97,13 +97,6 @@ def cat12_seg(in_file):
         return os.path.join(cwd,'p1' + in_file_basename), os.path.join(cwd,'p2' + in_file_basename)
               
 def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None, gdc_coeff_file=None):
-    # run gdc
-    if gdc_coeff_file is not None:
-        for infile in [inv2_file, uni_file]:
-            subprocess.run(['run_gdc.sh', infile,  gdc_coeff_file])
-            
-        inv2_file = inv2_file.replace('.nii', '_gdc.nii')
-        uni_file = uni_file.replace('.nii', '_gdc.nii')
         
     # mprageize
     cwd = os.path.dirname(os.path.abspath(uni_file))
@@ -116,9 +109,16 @@ def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None, gdc_coeff_file=None
         uni_mprageized_file = os.path.join(cwd,'T1w.nii')
         uni_mprageized_brain_file = os.path.join(cwd,'T1w_brain.nii')
         brainmask_file =  os.path.join(cwd,'brainmask.nii')
-    
+
     mprageize(inv2_file,uni_file,uni_mprageized_file)
 
+    # run gdc
+    if gdc_coeff_file is not None:
+        subprocess.run(['run_gdc.sh', uni_mprageized_file,  gdc_coeff_file])
+        uni_mprageized_file = uni_mprageized_file.replace('T1w','T1w_gdc')
+        uni_mprageized_brain_file =  uni_mprageized_brain_file.replace('T1w_brain','T1w_brain_gdc')
+        brainmask_file = brainmask_file.replace('brainmask','brainmask_gdc')
+        
     # obtain brainmask using cat12
     wm_file, gm_file = cat12_seg(uni_mprageized_file)
 
