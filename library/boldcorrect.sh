@@ -8,6 +8,8 @@
 fBaseName=$1
 shiftFraction=$2
 
+export FSLOUTPUTTYPE=NIFTI
+
 # shift notnulled (BOLD)
 slicetimer -i ${fBaseName}_notnulled -o ${fBaseName}_notnulled_tshift.nii \
            --tglobal=-${shiftFraction}

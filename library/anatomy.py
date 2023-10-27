@@ -7,6 +7,7 @@ import nibabel as nib
 import numpy as np
 import os
 import shutil
+import subprocess
 
 spm_path = '/data/pt_02389/Software/spm12'
 matlab.MatlabCommand.set_default_paths(spm_path)
@@ -49,7 +50,6 @@ def mprageize(inv2_file, uni_file, out_file=None):
     """ 
     Based on Sri Kashyap (https://github.com/srikash/presurfer/blob/main/func/presurf_MPRAGEise.m)
     """
-    #mprageize_wf = pe.Workflow(name='mprageize')
     
     # bias correct INV2
     seg = spm.NewSegment()
@@ -64,7 +64,7 @@ def mprageize(inv2_file, uni_file, out_file=None):
     seg.inputs.tissues = [tissue1, tissue2, tissue3, tissue4, tissue5, tissue6]    
     seg.inputs.affine_regularization = 'mni'
     seg.inputs.sampling_distance = 3
-    seg.inputs.warping_regularization = [0, 0.001, 0.5, 0.05, 0.02]
+    seg.inputs.warping_regularization = [0, 0.001, 0.5, 0.05, 0.2]
     seg.inputs.write_deformation_fields = [False, False]
     seg_results = seg.run(cwd=os.path.dirname(os.path.abspath(inv2_file)))
     
@@ -96,8 +96,15 @@ def cat12_seg(in_file):
     else:
         return os.path.join(cwd,'p1' + in_file_basename), os.path.join(cwd,'p2' + in_file_basename)
               
-def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None):
-
+def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None, gdc_coeff_file=None):
+    # run gdc
+    if gdc_coeff_file is not None:
+        for infile in [inv2_file, uni_file]:
+            subprocess.run(['run_gdc.sh', infile,  gdc_coeff_file])
+            
+        inv2_file = inv2_file.replace('.nii', '_gdc.nii')
+        uni_file = uni_file.replace('.nii', '_gdc.nii')
+        
     # mprageize
     cwd = os.path.dirname(os.path.abspath(uni_file))
     uni_basename = os.path.basename(os.path.abspath(uni_file))
@@ -137,8 +144,8 @@ def mp2rage_recon_all(inv2_file,uni_file,output_fs_dir=None):
 
     # run recon-all
     if output_fs_dir:
-         fs_dir = os.path.dirname(os.path.abspath(in_file))
-         sub = os.path.basename(os.path.abspath(in_file))
+         fs_dir = os.path.dirname(os.path.abspath(output_fs_dir))
+         sub = os.path.basename(os.path.abspath(output_fs_dir))
     else:
          fs_dir = cwd
          sub = 'freesurfer'
