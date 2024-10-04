@@ -2123,6 +2123,7 @@ def feat_analysis(
     output_dir,
     stim_timings_dir,
     smoothing_fwhm=0,
+    ppi_tcrs_file=None,
     overwrite=False,
 ):
     cwd = os.path.dirname(os.path.normpath(output_dir))
@@ -2174,6 +2175,18 @@ def feat_analysis(
         ],
         cwd=cwd,
     )
+    if ppi_tcrs_file is not None:
+        subprocess.run(
+            [
+                "sed",
+                "-i",
+                "-e",
+                f"s|templateVar_ppiTcrsFile|{ppi_tcrs_file}|g",
+                feat_template_base,
+            ],
+            cwd=cwd,
+        )
+        
     # run feat
     subprocess.run(["feat", feat_template_base], cwd=cwd)
     return output_dir
