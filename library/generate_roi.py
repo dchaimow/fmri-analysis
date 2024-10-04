@@ -46,8 +46,7 @@ def find_roi(
     cwd=None,
     keep_tmp=False,
 ):
-    """Hello.
-
+    """
     Finds an roi that most closely meets criteria based on predefined regions (e.g. using atlas parcels and
     activation maps.)
 
