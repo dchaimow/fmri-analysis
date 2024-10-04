@@ -1274,6 +1274,7 @@ def average_trials_3ddeconvolve(
     polort=5,
     onset_shift=0,
     cwd=None,
+    tentzero=False,
     force=None,
     IM=False
 ):
@@ -1312,9 +1313,13 @@ def average_trials_3ddeconvolve(
     stim_times = []
     stim_label = []
     i_condition = 0
+    if tentzero:
+        modelstr = f"TENTzero({a},{b},{n})"
+    else:
+        modelstr = f"TENT({a},{b},{n})"
     for condition, stim_file in condition_stim_files:
         i_condition = i_condition + 1
-        stim_times.append((i_condition, stim_file, f"TENT({a},{b},{n})"))
+        stim_times.append((i_condition, stim_file, modelstr))
         stim_label.append((i_condition, str(condition)))
 
     deconvolve_cmd = ["3dDeconvolve"]
@@ -1374,6 +1379,10 @@ def average_trials_3ddeconvolve(
         args="-mean -overwrite",
         out_file=os.path.join(cwd, out_files_basename + "_baseline.nii"),
     ).run()
+
+    # extract response timecourses
+    if tentzero:
+        n = n - 2 # correct for the two zero (non)-estimates
     for i in range(n_conditions):
         condition = condition_stim_files[i][0]
         result_condition_diffresponse_timecourse = TCatSubBrick(
