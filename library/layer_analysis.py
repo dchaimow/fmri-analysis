@@ -9,6 +9,10 @@ from shutil import rmtree, copy2
 import numpy as np
 import pandas as pd
 import nibabel as nib
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from nilearn._utils import check_niimg
 from nilearn.image import math_img, mean_img, index_img, get_data
 from nilearn.masking import apply_mask, intersect_masks
