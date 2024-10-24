@@ -9,10 +9,14 @@ from shutil import rmtree, copy2
 import numpy as np
 import pandas as pd
 import nibabel as nib
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from nilearn._utils import check_niimg
 from nilearn.image import math_img, mean_img, index_img, get_data
 from nilearn.masking import apply_mask, intersect_masks
-from nipype.interfaces.afni import Deconvolve, TCatSubBrick, Calc, TStat
+from nipype.interfaces.afni import TCatSubBrick, Calc, TStat
 from nipype.interfaces.ants import ApplyTransformsToPoints
 from nipype.interfaces.freesurfer import MRIsConvert
 from nipype.interfaces.fsl import SliceTimer
@@ -30,7 +34,7 @@ def fsl_remove_ext(filename):
     return result.stdout.strip().decode()
 
 
-### Registrations and Transform related functions
+# Registrations and Transform related functions
 def surftransform_gii(gii_surf, transforms, invert_transform_flags, cwd=None):
     """
     Takes gifti surface and applies ants transforms
@@ -42,7 +46,6 @@ def surftransform_gii(gii_surf, transforms, invert_transform_flags, cwd=None):
     """
     if cwd is None:
         cwd = os.path.dirname(os.path.normpath(gii_surf))
-    out_file = os.path.basename(os.path.normpath(gii_surf))
     # convert gii to csv
     result_GiftiToCSV = GiftiToCSV(in_file=gii_surf, itk_lps=True).run(cwd=cwd)
     csv_surf = result_GiftiToCSV.outputs.out_file
@@ -72,7 +75,7 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags, out_file, cwd=
     :param cwd:
     :return:
     """
-    if cwd == None:
+    if cwd is None:
         cwd = os.path.dirname(os.path.normpath(out_file))
     # convert fs to gii
     result_MRIsConvert = MRIsConvert(
@@ -98,7 +101,7 @@ def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
     :param force:
     :return:
     """
-    if analysis_dir == None:
+    if analysis_dir is None:
         analysis_dir = os.path.join(fs_dir, "surf")
     transform_0_lin = fs_to_func_reg[1]
     transform_1_inversewarp = fs_to_func_reg[3]
@@ -108,7 +111,7 @@ def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
         for surf_type in ["white", "pial"]:
             surf = os.path.join(fs_dir, "surf", hemi + "." + surf_type)
             surf_trans = os.path.join(analysis_dir, hemi + "." + surf_type + "_func")
-            if not os.path.isfile(surf_trans) or force == True:
+            if not os.path.isfile(surf_trans) or force:
                 surf_trans_files[hemi, surf_type] = surftransform_fs(
                     surf,
                     [transform_0_lin, transform_1_inversewarp],
@@ -202,8 +205,8 @@ def process_vaso(
 
 def register_fs_to_vasot1(fs_dir, analysis_dir, use_brain=False, force=False):
     """
-    Wrapper function to run an external script that does registration of freesurfer dataset to VASO T1
-    (functional space).
+    Wrapper function to run an external script that does registration of
+    freesurfer dataset to VASO T1 (functional space).
     :param fs_dir:
     :param analysis_dir:
     :param use_brain:
@@ -211,9 +214,9 @@ def register_fs_to_vasot1(fs_dir, analysis_dir, use_brain=False, force=False):
     """
     if (
         not os.path.isfile(os.path.join(analysis_dir, "fs_to_func_0GenericAffine.mat"))
-        or force == True
+        or force
     ):
-        if use_brain == True:
+        if use_brain:
             target = "func_all_T1_brain.nii"
         else:
             target = "func_all_T1.nii"
@@ -225,8 +228,8 @@ def register_fs_to_vasot1(fs_dir, analysis_dir, use_brain=False, force=False):
 
 def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
     """
-    Wrapper function to run an external script that applies a ANTS non-linear registration transform,
-    consisting of 1. warp and 2. affine to input volume.
+    Wrapper function to run an external script that applies a ANTS non-linear
+    registration transform, consisting of 1. warp and 2. affine to input volume
     :param vol_in:
     :param vol_out:
     :param ref_vol:
@@ -255,8 +258,9 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
         ]
     )
     # TODO: Check if the following comment can be removed.
-    # NOTE: It seemed necessary, because the resulting affine from ANTS was not exactly the same as the ref volume
-    # (they differ at the 8th decimal after the dot), but why are they not exatly the same?
+    # NOTE: It seemed necessary, because the resulting affine from ANTS was not
+    # exactly the same as the ref volume (they differ at the 8th decimal after
+    # the dot), but why are they not exatly the same?
     # nii_vol_out = nib.load(vol_out)
     # nii_ref_vol = nib.load(ref_vol)
     # nii_vol_out.header.set_qform(nii_ref_vol.header.get_qform())
@@ -266,19 +270,20 @@ def apply_ants_transforms(vol_in, vol_out, ref_vol, affine, warp):
 
 def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
     """
-    Wrapper function to run external script that imports gray matter ribbon from freesurfer dataset and
-    transforms it to functional space. Assumes there are fs-to-func registration files in analysis_dir
+    Wrapper function to run external script that imports gray matter ribbon
+    from freesurfer dataset and transforms it to functional space. Assumes
+    there are fs-to-func registration files in analysis_dir
     :param fs_dir:
     :param analysis_dir:
     :param force:
     :return:
     """
     rim_file = os.path.join(analysis_dir, "rim.nii")
-    if not os.path.isfile(rim_file) or force == True:
+    if not os.path.isfile(rim_file) or force:
         if (
             subprocess.run(
                 [
-                    "/data/p_02389/code/fmri-analysis/library/import-fs-ribbon.sh",
+                    "/data/p_02389/code/fmri-analysis/library/" + "import-fs-ribbon.sh",
                     fs_dir,
                     analysis_dir,
                     os.path.join(analysis_dir, "fs_t1_in-func.nii"),
@@ -290,9 +295,7 @@ def import_fs_ribbon_to_func(fs_dir, analysis_dir, force=False):
     return rim_file
 
 
-### ROI related functions
-
-
+# ROI related functions
 def generate_atlas_region_hcp(atlas_file, out_file, label_list):
     """
     generate a surface roi from a list of atlas labels
@@ -1090,7 +1093,6 @@ def get_stat_cluster_atlas(
     force=False,
     dont_repeat_sample_and_smooth=False,
 ):
-
     stat_file_dir = os.path.dirname(os.path.abspath(stat_file))
     stat_file_base = fsl_remove_ext(os.path.basename(os.path.abspath(stat_file)))
     stat_surf_smooth = os.path.join(
@@ -1274,8 +1276,9 @@ def average_trials_3ddeconvolve(
     polort=5,
     onset_shift=0,
     cwd=None,
+    tentzero=False,
     force=None,
-    IM=False
+    IM=False,
 ):
     if cwd == None:
         cwd = os.path.dirname(os.path.normpath(in_files[0]))
@@ -1312,9 +1315,13 @@ def average_trials_3ddeconvolve(
     stim_times = []
     stim_label = []
     i_condition = 0
+    if tentzero:
+        modelstr = f"TENTzero({a},{b},{n})"
+    else:
+        modelstr = f"TENT({a},{b},{n})"
     for condition, stim_file in condition_stim_files:
         i_condition = i_condition + 1
-        stim_times.append((i_condition, stim_file, f"TENT({a},{b},{n})"))
+        stim_times.append((i_condition, stim_file, modelstr))
         stim_label.append((i_condition, str(condition)))
 
     deconvolve_cmd = ["3dDeconvolve"]
@@ -1329,9 +1336,19 @@ def average_trials_3ddeconvolve(
         stim_model = stim_times_entry[2]
 
         if IM:
-            deconvolve_cmd += ["-stim_times_IM", i_condition_str, stim_times_file, stim_model]
+            deconvolve_cmd += [
+                "-stim_times_IM",
+                i_condition_str,
+                stim_times_file,
+                stim_model,
+            ]
         else:
-            deconvolve_cmd += ["-stim_times", i_condition_str, stim_times_file, stim_model]
+            deconvolve_cmd += [
+                "-stim_times",
+                i_condition_str,
+                stim_times_file,
+                stim_model,
+            ]
         deconvolve_cmd += ["-stim_label", i_condition_str, condition]
         deconvolve_cmd += [
             "-sresp",
@@ -1374,6 +1391,10 @@ def average_trials_3ddeconvolve(
         args="-mean -overwrite",
         out_file=os.path.join(cwd, out_files_basename + "_baseline.nii"),
     ).run()
+
+    # extract response timecourses
+    if tentzero:
+        n = n - 2 # correct for the two zero (non)-estimates
     for i in range(n_conditions):
         condition = condition_stim_files[i][0]
         result_condition_diffresponse_timecourse = TCatSubBrick(
@@ -2055,12 +2076,12 @@ def paradigm_events(run_type):
 
     trial_duration = 32
     start_blank_period = 8
-    
-    condition_list = [None, None, 'rem', 'alpha', 'nogo', 'go']
-    event_list = ['letterString', 'fix1', 'cue', 'fixDelay', 'probe', 'ITI']
+
+    condition_list = [None, None, "rem", "alpha", "nogo", "go"]
+    event_list = ["letterString", "fix1", "cue", "fixDelay", "probe", "ITI"]
     event_durations = [2.5, 1.5, 1, 9, 2, 16]
     event_trial_times = [0, 2.5, 4, 5, 14, 16]
-    
+
     n_trials = len(trial_order)
     n_events = len(event_list)
 
@@ -2069,40 +2090,44 @@ def paradigm_events(run_type):
     events_name = []
     events_onset = []
     events_duration = []
-    
+
     for trial_number in range(n_trials):
         events_trial_number += [trial_number] * n_events
         events_trial_condition += [condition_list[trial_order[trial_number]]] * n_events
         for event_name, event_trial_time, event_duration in zip(
-                event_list, event_trial_times, event_durations):
+            event_list, event_trial_times, event_durations
+        ):
             events_name.append(event_name)
             events_onset.append(
-                event_trial_time + start_blank_period + trial_number * trial_duration)
+                event_trial_time + start_blank_period + trial_number * trial_duration
+            )
             events_duration.append(event_duration)
 
-    events = pd.DataFrame({'trial_number': events_trial_number,
-                           'trial_condition': events_trial_condition,
-                           'event': events_name,
-                           'onset': events_onset,
-                           'duration': events_duration})
+    events = pd.DataFrame(
+        {
+            "trial_number": events_trial_number,
+            "trial_condition": events_trial_condition,
+            "event": events_name,
+            "onset": events_onset,
+            "duration": events_duration,
+        }
+    )
     return events
+
 
 def convert_events_to_nilearn(events):
     nl_events = pd.DataFrame()
-    nl_events['onset'] = events['onset']
-    nl_events['trial_type'] = events['event']
-    nl_events['duration'] = events['duration']
+    nl_events["onset"] = events["onset"]
+    nl_events["trial_type"] = events["event"]
+    nl_events["duration"] = events["duration"]
     return nl_events
 
 
 def extract_events(events, event_names):
     return events.query("event == @event_names").reset_index(drop=True)
-        
-    
+
 
 ### TODO or obsolete:
-
-
 
 
 def preprocess_funcloc(data):
@@ -2123,6 +2148,7 @@ def feat_analysis(
     output_dir,
     stim_timings_dir,
     smoothing_fwhm=0,
+    ppi_tcrs_file=None,
     overwrite=False,
 ):
     cwd = os.path.dirname(os.path.normpath(output_dir))
@@ -2174,6 +2200,18 @@ def feat_analysis(
         ],
         cwd=cwd,
     )
+    if ppi_tcrs_file is not None:
+        subprocess.run(
+            [
+                "sed",
+                "-i",
+                "-e",
+                f"s|templateVar_ppiTcrsFile|{ppi_tcrs_file}|g",
+                feat_template_base,
+            ],
+            cwd=cwd,
+        )
+        
     # run feat
     subprocess.run(["feat", feat_template_base], cwd=cwd)
     return output_dir

@@ -28,6 +28,9 @@ applywarp --rel --interp=spline \
           -o corrected \
           --paddingsize=1
 
+# remove negative values from spline interpolation
+fslmaths corrected -thr 0 corrected
+
 cd ${curDir}
 
 imcp ${tmpdir}/corrected $(remove_ext ${file_in})_gdc
