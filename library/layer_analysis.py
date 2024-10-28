@@ -2272,3 +2272,59 @@ def trial_averaging():
 
 def glm_analysis():
     pass
+
+
+def fs_surface_to_func_singlewarp(transform_0_warp, fs_dir, analysis_dir=None,
+                                  force=True,invert_transform_flags=[False]):
+    """
+    Transforms freesurfer surfaces to functional space using ANTs transfrom.
+    (modified function from layer_analysis.py to deal with the special case of
+     a single warpfield)
+    :param fs_to_func_reg:
+    :param fs_dir:
+    :param analysis_dir:
+    :param force:
+    :return:
+    """
+    if analysis_dir is None:
+        analysis_dir = os.path.join(fs_dir, "surf")
+    #invert_transform_flags = [True]
+    print(invert_transform_flags)
+    surf_trans_files = dict()
+    for hemi in ["lh", "rh"]:
+        for surf_type in ["white", "pial"]:
+            surf = os.path.join(fs_dir, "surf", hemi + "." + surf_type)
+            surf_trans = os.path.join(
+                analysis_dir, hemi + "." + surf_type + "_func")
+            if not os.path.isfile(surf_trans) or force is True:
+                surf_trans_files[hemi, surf_type] = layer_analysis.surftransform_fs(
+                    surf,
+                    [transform_0_warp],
+                    invert_transform_flags,
+                    out_file=surf_trans,
+                )
+            else:
+                surf_trans_files[hemi, surf_type] = surf_trans
+    return surf_trans_files
+
+
+def gii_to_dtseries(gifti_input_L, gifti_input_R, dtseries_file):
+    """
+    converts two giftis (L&R) to a dense timeseries file
+    """
+    command = ['wb_command', '-cifti-create-dense-timeseries', dtseries_file, '-left-metric', gifti_input_L, '-right-metric', gifti_input_R]
+
+    subprocess.run(command)
+    return dtseries_file
+
+
+def dtseries_parcellate(dtseries_file, parcel_cifti, output_file):
+    """
+    parcellates a dtseries cifti into an arbitrary parcellation (parcel_cifti)
+    parcel_cifti is expected to be a dlabel.nii
+    """
+
+    command = ['wb_command', '-cifti-parcellate', dtseries_file, parcel_cifti, 'COLUMN', output_file, '-method', 'MEAN']
+    subprocess.run(command)
+
+    return
