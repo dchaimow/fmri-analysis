@@ -2322,6 +2322,7 @@ def dtseries_parcellate(dtseries_file, parcel_cifti, output_file):
     """
     parcellates a dtseries cifti into an arbitrary parcellation (parcel_cifti)
     parcel_cifti is expected to be a dlabel.nii
+    works with any parcellation.
     """
 
     command = ['wb_command', '-cifti-parcellate', dtseries_file, parcel_cifti, 'COLUMN', output_file, '-method', 'MEAN']
