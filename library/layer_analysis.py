@@ -92,20 +92,32 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags, out_file, cwd=
     return out_file
 
 
-def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
+def fs_surface_to_func(transforms, fs_dir, analysis_dir=None, is_inverse_transform_flags=None, 
+                       force=False):
     """
-    Transforms freesurfer surfaces to functional space using ANTs transfrom.
-    :param fs_to_func_reg:
-    :param fs_dir:
-    :param analysis_dir:
-    :param force:
-    :return:
+    Transforms freesurfer surfaces to functional space using ANTs transform.
+    ANTs transform is specified as a list of transform file (matrix files of warp niftis).
+    Note: Previous version expected a list of 4 elements (ref_vol_nifti, linear transform, warp, inverse wap)
+    All transforms are assumed to be forward transforms and will be inverted for transformation of points if not specified otherwise.
+    (e.g. inverse warp can be supplied to speed up computattion by setting corresponding inverse_transform_flag to True, 
+    which means it will not be inverted)
+
+    :param transforms: list of transform files (matrix files of warp niftis, all in ANTs/ITK format)
+    :param fs_dir: freesurfer directory
+    :param analysis_dir: output directory
+    :param is_inverse_transform_flags: list of flags to specify if the transform is inverse or not (default: not)
+    :param force: overwrite existing files
+    :return: dictionary of transformed surface files
     """
+
     if analysis_dir is None:
         analysis_dir = os.path.join(fs_dir, "surf")
-    transform_0_lin = fs_to_func_reg[1]
-    transform_1_inversewarp = fs_to_func_reg[3]
-    invert_transform_flags = [True, False]
+
+    if is_inverse_transform_flags is None:
+        invert_transform_flags = [True] * len(transforms)
+    else:
+        invert_transform_flags = [not flag for flag in is_inverse_transform_flags]
+
     surf_trans_files = dict()
     for hemi in ["lh", "rh"]:
         for surf_type in ["white", "pial"]:
@@ -114,13 +126,20 @@ def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
             if not os.path.isfile(surf_trans) or force:
                 surf_trans_files[hemi, surf_type] = surftransform_fs(
                     surf,
-                    [transform_0_lin, transform_1_inversewarp],
+                    transforms,
                     invert_transform_flags,
                     out_file=surf_trans,
                 )
             else:
                 surf_trans_files[hemi, surf_type] = surf_trans
     return surf_trans_files
+
+def fs_surface_to_func_legacy(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
+    transforms = [fs_to_func_reg[1], fs_to_func_reg[3]]
+    is_inverse_transform_flags = [False, True]
+
+    return fs_surface_to_func(transforms, fs_dir, analysis_dir, is_inverse_transform_flags, force)
+
 
 
 def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
@@ -2272,40 +2291,6 @@ def trial_averaging():
 
 def glm_analysis():
     pass
-
-
-def fs_surface_to_func_singlewarp(transform_0_warp, fs_dir, analysis_dir=None,
-                                  force=True,invert_transform_flags=[False]):
-    """
-    Transforms freesurfer surfaces to functional space using ANTs transfrom.
-    (modified function from layer_analysis.py to deal with the special case of
-     a single warpfield)
-    :param fs_to_func_reg:
-    :param fs_dir:
-    :param analysis_dir:
-    :param force:
-    :return:
-    """
-    if analysis_dir is None:
-        analysis_dir = os.path.join(fs_dir, "surf")
-    #invert_transform_flags = [True]
-    print(invert_transform_flags)
-    surf_trans_files = dict()
-    for hemi in ["lh", "rh"]:
-        for surf_type in ["white", "pial"]:
-            surf = os.path.join(fs_dir, "surf", hemi + "." + surf_type)
-            surf_trans = os.path.join(
-                analysis_dir, hemi + "." + surf_type + "_func")
-            if not os.path.isfile(surf_trans) or force is True:
-                surf_trans_files[hemi, surf_type] = layer_analysis.surftransform_fs(
-                    surf,
-                    [transform_0_warp],
-                    invert_transform_flags,
-                    out_file=surf_trans,
-                )
-            else:
-                surf_trans_files[hemi, surf_type] = surf_trans
-    return surf_trans_files
 
 
 def gii_to_dtseries(gifti_input_L, gifti_input_R, dtseries_file):
