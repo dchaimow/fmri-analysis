@@ -92,20 +92,32 @@ def surftransform_fs(fs_surf, transforms, invert_transform_flags, out_file, cwd=
     return out_file
 
 
-def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
+def fs_surface_to_func(transforms, fs_dir, analysis_dir=None, is_inverse_transform_flags=None, 
+                       force=False):
     """
-    Transforms freesurfer surfaces to functional space using ANTs transfrom.
-    :param fs_to_func_reg:
-    :param fs_dir:
-    :param analysis_dir:
-    :param force:
-    :return:
+    Transforms freesurfer surfaces to functional space using ANTs transform.
+    ANTs transform is specified as a list of transform file (matrix files of warp niftis).
+    Note: Previous version expected a list of 4 elements (ref_vol_nifti, linear transform, warp, inverse wap)
+    All transforms are assumed to be forward transforms and will be inverted for transformation of points if not specified otherwise.
+    (e.g. inverse warp can be supplied to speed up computattion by setting corresponding inverse_transform_flag to True, 
+    which means it will not be inverted)
+
+    :param transforms: list of transform files (matrix files of warp niftis, all in ANTs/ITK format)
+    :param fs_dir: freesurfer directory
+    :param analysis_dir: output directory
+    :param is_inverse_transform_flags: list of flags to specify if the transform is inverse or not (default: not)
+    :param force: overwrite existing files
+    :return: dictionary of transformed surface files
     """
+
     if analysis_dir is None:
         analysis_dir = os.path.join(fs_dir, "surf")
-    transform_0_lin = fs_to_func_reg[1]
-    transform_1_inversewarp = fs_to_func_reg[3]
-    invert_transform_flags = [True, False]
+
+    if is_inverse_transform_flags is None:
+        invert_transform_flags = [True] * len(transforms)
+    else:
+        invert_transform_flags = [not flag for flag in is_inverse_transform_flags]
+
     surf_trans_files = dict()
     for hemi in ["lh", "rh"]:
         for surf_type in ["white", "pial"]:
@@ -114,13 +126,20 @@ def fs_surface_to_func(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
             if not os.path.isfile(surf_trans) or force:
                 surf_trans_files[hemi, surf_type] = surftransform_fs(
                     surf,
-                    [transform_0_lin, transform_1_inversewarp],
+                    transforms,
                     invert_transform_flags,
                     out_file=surf_trans,
                 )
             else:
                 surf_trans_files[hemi, surf_type] = surf_trans
     return surf_trans_files
+
+def fs_surface_to_func_legacy(fs_to_func_reg, fs_dir, analysis_dir=None, force=False):
+    transforms = [fs_to_func_reg[1], fs_to_func_reg[3]]
+    is_inverse_transform_flags = [False, True]
+
+    return fs_surface_to_func(transforms, fs_dir, analysis_dir, is_inverse_transform_flags, force)
+
 
 
 def ciftify_surface_to_func(fs_to_func_reg, ciftify_dir, analysis_dir=None):
@@ -2272,3 +2291,26 @@ def trial_averaging():
 
 def glm_analysis():
     pass
+
+
+def gii_to_dtseries(gifti_input_L, gifti_input_R, dtseries_file):
+    """
+    converts two giftis (L&R) to a dense timeseries file
+    """
+    command = ['wb_command', '-cifti-create-dense-timeseries', dtseries_file, '-left-metric', gifti_input_L, '-right-metric', gifti_input_R]
+
+    subprocess.run(command)
+    return dtseries_file
+
+
+def dtseries_parcellate(dtseries_file, parcel_cifti, output_file):
+    """
+    parcellates a dtseries cifti into an arbitrary parcellation (parcel_cifti)
+    parcel_cifti is expected to be a dlabel.nii
+    works with any parcellation.
+    """
+
+    command = ['wb_command', '-cifti-parcellate', dtseries_file, parcel_cifti, 'COLUMN', output_file, '-method', 'MEAN']
+    subprocess.run(command)
+
+    return
