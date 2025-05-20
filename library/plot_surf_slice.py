@@ -5,6 +5,13 @@ from voxeldepths_from_surfaces import load_fs_surf_in_grid
 
 
 def plot_surf_slice(surf, z_slice, color='k'):
+    """
+    Plot a slice of a surface at z=z_slice
+    surf: a dictionary with keys 'vertices' and 'tris'
+    z_slice: the z value of the slice
+    color: the color of the slice
+    TODO: Implement slices for all three axes.
+    """
     # load surface file
     vertices = surf['vertices']
     faces = surf['tris']
